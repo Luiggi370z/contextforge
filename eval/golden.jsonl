@@ -1,5 +1,15 @@
 {"question": "How many PTO days do full-time employees accrue per year?", "ground_truth": "20 PTO days per calendar year", "reference_doc": "policy_pto.md"}
-{"question": "Can unused PTO roll over?", "ground_truth": "Yes, up to 10 days capped", "reference_doc": "policy_pto.md"}
-{"question": "How much notice is required for PTO requests?", "ground_truth": "At least two weeks notice", "reference_doc": "policy_pto.md"}
+{"question": "Can unused PTO roll over to the next year?", "ground_truth": "Yes, capped at 10 days", "reference_doc": "policy_pto.md"}
+{"question": "What is the minimum notice for PTO requests?", "ground_truth": "At least two weeks notice", "reference_doc": "policy_pto.md"}
+{"question": "How many unused PTO days can roll over if someone has more than 5 days left?", "ground_truth": "Roll over capped at 10 days", "reference_doc": "policy_pto.md"}
+{"question": "Are there exceptions to the two-week PTO notice rule?", "ground_truth": "Emergencies are an exception", "reference_doc": "policy_pto.md"}
 {"question": "How many remote work days are allowed per week?", "ground_truth": "Up to three days per week", "reference_doc": "policy_remote_work.md"}
 {"question": "What are core collaboration hours for remote workers?", "ground_truth": "10:00-16:00 local timezone", "reference_doc": "policy_remote_work.md"}
+{"question": "Do remote workers need manager approval?", "ground_truth": "Yes, manager approval is required", "reference_doc": "policy_remote_work.md"}
+{"question": "What VPN requirement applies to remote workers?", "ground_truth": "Company-approved VPN for internal systems", "reference_doc": "policy_remote_work.md"}
+{"question": "When must remote employees be available for collaboration?", "ground_truth": "Core hours 10:00 to 16:00 local time", "reference_doc": "policy_remote_work.md"}
+{"question": "What encryption is required on company laptops?", "ground_truth": "Full-disk encryption", "reference_doc": "policy_security.md"}
+{"question": "What is required for production system access?", "ground_truth": "MFA and security team approval", "reference_doc": "policy_security.md"}
+{"question": "How quickly must security incidents be reported?", "ground_truth": "Within one hour", "reference_doc": "policy_security.md"}
+{"question": "How do employees report suspected security incidents?", "ground_truth": "Security hotline or ticket queue", "reference_doc": "policy_security.md"}
+{"question": "What is the lunar habitat budget for 2099?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}

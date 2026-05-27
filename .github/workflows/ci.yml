@@ -29,6 +29,9 @@ jobs:
           EMBEDDING_BACKEND: hash
           LLM_PROVIDER: heuristic
         run: uv run pytest -q
+      - name: Eval golden dry-run
+        working-directory: backend
+        run: uv run python ../eval/run_ragas.py --dry-run
 
   web:
     runs-on: ubuntu-latest

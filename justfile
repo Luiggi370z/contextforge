@@ -19,6 +19,12 @@ seed:
 eval-dry:
     cd backend && uv run python ../eval/run_ragas.py --dry-run
 
+eval:
+    cd backend && uv run python ../eval/run_ragas.py
+
+eval-heuristic:
+    cd backend && uv run python ../eval/run_ragas.py --heuristic-only
+
 # Backend
 test:
     cd backend && uv run pytest -q
