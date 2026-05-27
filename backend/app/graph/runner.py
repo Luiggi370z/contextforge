@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Message, Thread
 from app.graph.pipeline import run_agent_pipeline
 from app.retrieval.qdrant_store import get_qdrant_store
-from app.schemas.query import Citation, QueryMetadata, QueryRequest, QueryResponse
+from app.api.v1.query.schemas import Citation, QueryMetadata, QueryRequest, QueryResponse
 
 log = structlog.get_logger(__name__)
 

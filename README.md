@@ -2,7 +2,7 @@
 
 Agentic RAG platform for portfolio demos: **LangGraph-style pipeline**, **FastAPI**, **hybrid retrieval** (dense + BM25 + RRF), **PostgreSQL**, **Qdrant**, and a **Vite/React** chat UI with route debug visibility.
 
-**Implementation plan:** [docs/PLAN.md](docs/PLAN.md) · **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+**Implementation plan:** [docs/PLAN.md](docs/PLAN.md) · **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Coding standards:** [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
 
 ## Quick start
 

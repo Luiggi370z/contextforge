@@ -44,6 +44,10 @@ flowchart LR
 2. **Hybrid retrieval** — BM25 catches exact policy terms; dense embeddings catch paraphrases. RRF merges ranked lists without score normalization.
 3. **Abstain vs always-answer** — Low retrieval grade returns a fixed abstain string instead of hallucinating; validator can also force abstain.
 
+## Conventions
+
+See [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md): no single-char variables, concise docstrings with examples, Pydantic/dataclasses over dicts, DRY/YAGNI/SOLID, files under 300 lines, one TODO per review/commit cycle.
+
 ## Tooling
 
 | Area | Stack |

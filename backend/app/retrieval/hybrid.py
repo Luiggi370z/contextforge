@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.constants import RRF_RANK_CONSTANT
 from app.db.models import Chunk
 from app.retrieval.qdrant_store import QdrantStore
 
@@ -20,7 +21,9 @@ class RetrievedChunk:
     score: float
 
 
-def reciprocal_rank_fusion(rank_lists: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
+def reciprocal_rank_fusion(
+    rank_lists: list[list[str]], k: int = RRF_RANK_CONSTANT
+) -> list[tuple[str, float]]:
     scores: dict[str, float] = {}
     for ranked in rank_lists:
         for rank, doc_id in enumerate(ranked):
