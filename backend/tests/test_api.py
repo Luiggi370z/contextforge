@@ -38,6 +38,7 @@ async def test_query_with_mocked_runner():
 
 @pytest.mark.asyncio
 async def test_query_stream_mocked():
+    """Covered in depth by tests/test_streaming.py."""
     mock_response = QueryResponse(
         answer="streamed",
         metadata=QueryMetadata(route="direct"),
@@ -49,7 +50,6 @@ async def test_query_stream_mocked():
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             res = await client.post("/v1/query/stream", json={"message": "hello"})
     assert res.status_code == 200
-    assert "text/event-stream" in res.headers.get("content-type", "")
 
 
 @pytest.mark.asyncio

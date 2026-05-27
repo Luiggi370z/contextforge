@@ -75,6 +75,7 @@ async def run_query(
     )
     response = QueryResponse(
         answer=state.get("answer", ""),
+        thread_id=thread_id,
         citations=citations,
         metadata=metadata,
     )

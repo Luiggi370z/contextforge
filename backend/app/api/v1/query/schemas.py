@@ -30,5 +30,6 @@ class QueryMetadata(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
+    thread_id: uuid.UUID | None = None
     citations: list[Citation] = Field(default_factory=list)
     metadata: QueryMetadata = Field(default_factory=QueryMetadata)

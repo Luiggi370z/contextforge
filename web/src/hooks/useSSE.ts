@@ -1,9 +1,21 @@
 import type { QueryResponse } from "../types";
 
+export type StreamStatusHandler = (stage: string) => void;
+
+interface StreamPayload {
+  type: string;
+  content?: string;
+  stage?: string;
+  detail?: string;
+  correlation_id?: string;
+  result?: QueryResponse;
+}
+
 export async function streamQuery(
   message: string,
   threadId: string | null,
   onToken: (chunk: string) => void,
+  onStatus?: StreamStatusHandler,
 ): Promise<QueryResponse> {
   const res = await fetch("/v1/query/stream", {
     method: "POST",
@@ -27,13 +39,19 @@ export async function streamQuery(
     for (const part of parts) {
       for (const line of part.split("\n")) {
         if (!line.startsWith("data: ")) continue;
-        const payload = JSON.parse(line.slice(6)) as {
-          type: string;
-          content?: string;
-          result?: QueryResponse;
-        };
-        if (payload.type === "token" && payload.content) onToken(payload.content);
-        if (payload.type === "done" && payload.result) finalResult = payload.result;
+        const payload = JSON.parse(line.slice(6)) as StreamPayload;
+        if (payload.type === "status" && payload.stage) {
+          onStatus?.(payload.stage);
+        }
+        if (payload.type === "token" && payload.content) {
+          onToken(payload.content);
+        }
+        if (payload.type === "done" && payload.result) {
+          finalResult = payload.result;
+        }
+        if (payload.type === "error") {
+          throw new Error(payload.detail ?? "Stream error");
+        }
       }
     }
   }

@@ -12,10 +12,12 @@ export interface QueryMetadata {
   abstained: boolean;
   nodes_visited: string[];
   retrieval_scores: number[];
+  graph_checkpoint_enabled?: boolean;
 }
 
 export interface QueryResponse {
   answer: string;
+  thread_id?: string;
   citations: Citation[];
   metadata: QueryMetadata;
 }

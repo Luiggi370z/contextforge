@@ -1,7 +1,5 @@
 """HTTP routes for RAG queries (sync and SSE)."""
 
-import json
-
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +15,12 @@ from app.api.v1.query.service import QueryService
 from app.db.session import get_db
 
 router = APIRouter()
+
+SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
 
 
 @router.post("", response_model=QueryResponse)
@@ -45,19 +49,15 @@ async def query_stream(
     checkpointer: object | None = Depends(get_langgraph_checkpointer),
     compiled_graph: object | None = Depends(get_compiled_agent_graph),
 ) -> StreamingResponse:
-    """Stream query tokens and final result as SSE."""
+    """Stream graph status, answer tokens, and final result with citations as SSE."""
     increment_queries()
-    result = await query_service.execute(
-        body,
-        session,
-        checkpointer=checkpointer,
-        compiled_graph=compiled_graph,
+    return StreamingResponse(
+        query_service.stream_execute(
+            body,
+            session,
+            checkpointer=checkpointer,
+            compiled_graph=compiled_graph,
+        ),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
     )
-
-    async def event_generator():
-        payload = {"type": "token", "content": result.answer}
-        yield f"data: {json.dumps(payload)}\n\n"
-        done = {"type": "done", "result": result.model_dump(mode="json")}
-        yield f"data: {json.dumps(done)}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")

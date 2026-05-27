@@ -25,6 +25,12 @@ export function DebugPanel({ metadata }: Props) {
         <span className="text-amber-400">scores</span>{" "}
         {metadata.retrieval_scores.map((s) => s.toFixed(3)).join(", ") || "—"}
       </p>
+      {metadata.graph_checkpoint_enabled !== undefined && (
+        <p>
+          <span className="text-amber-400">checkpoint</span>{" "}
+          {String(metadata.graph_checkpoint_enabled)}
+        </p>
+      )}
     </div>
   );
 }

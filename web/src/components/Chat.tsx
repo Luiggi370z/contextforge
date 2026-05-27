@@ -12,6 +12,7 @@ export function Chat() {
   const [loading, setLoading] = useState(false);
   const [showDebug, setShowDebug] = useState(true);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [streamStage, setStreamStage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
@@ -32,18 +33,25 @@ export function Chat() {
     if (!text || loading) return;
     setInput("");
     setLoading(true);
+    setStreamStage(null);
     setMessages((m) => [...m, { role: "user", content: text }]);
     let assistant = "";
     setMessages((m) => [...m, { role: "assistant", content: "" }]);
     try {
-      const result = await streamQuery(text, threadId, (token) => {
-        assistant += token;
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: assistant };
-          return copy;
-        });
-      });
+      const result = await streamQuery(
+        text,
+        threadId,
+        (token) => {
+          assistant += token;
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { role: "assistant", content: assistant };
+            return copy;
+          });
+        },
+        (stage) => setStreamStage(stage),
+      );
+      if (result.thread_id) setThreadId(result.thread_id);
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
@@ -66,6 +74,7 @@ export function Chat() {
       });
     } finally {
       setLoading(false);
+      setStreamStage(null);
     }
   };
 
@@ -136,6 +145,10 @@ export function Chat() {
           </button>
         ))}
       </div>
+
+      {loading && streamStage && (
+        <p className="text-xs font-mono text-slate-400">Graph: {streamStage}</p>
+      )}
 
       <div className="flex-1 space-y-4 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/40 p-4">
         {messages.length === 0 && (
