@@ -1,0 +1,34 @@
+export type RouteKind = "direct" | "single_hop_rag" | "multi_hop" | "unknown";
+
+export interface Citation {
+  document_id?: string;
+  chunk_id?: string;
+  snippet: string;
+  score?: number;
+}
+
+export interface QueryMetadata {
+  route: RouteKind;
+  abstained: boolean;
+  nodes_visited: string[];
+  retrieval_scores: number[];
+}
+
+export interface QueryResponse {
+  answer: string;
+  citations: Citation[];
+  metadata: QueryMetadata;
+}
+
+export interface Thread {
+  id: string;
+  title: string | null;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  metadata?: QueryMetadata;
+  citations?: Citation[];
+}

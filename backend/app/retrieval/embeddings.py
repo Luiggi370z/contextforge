@@ -1,0 +1,42 @@
+"""Embedding providers — hash backend for fast tests, sentence-transformers for real use."""
+
+from __future__ import annotations
+
+import hashlib
+from functools import lru_cache
+
+import numpy as np
+import structlog
+
+from app.core.config import get_settings
+
+log = structlog.get_logger(__name__)
+_DIM = 384
+
+
+def _hash_embed(text: str) -> list[float]:
+    digest = hashlib.sha256(text.encode()).digest()
+    rng = np.random.default_rng(int.from_bytes(digest[:8], "big"))
+    vec = rng.standard_normal(_DIM).astype(np.float32)
+    vec /= np.linalg.norm(vec) + 1e-9
+    return vec.tolist()
+
+
+@lru_cache(maxsize=1)
+def _sentence_model():
+    from sentence_transformers import SentenceTransformer
+
+    settings = get_settings()
+    log.info("loading_embedding_model", model=settings.embedding_model)
+    return SentenceTransformer(settings.embedding_model)
+
+
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    if not texts:
+        return []
+    settings = get_settings()
+    if settings.embedding_backend == "hash":
+        return [_hash_embed(t) for t in texts]
+    model = _sentence_model()
+    vectors = model.encode(texts, normalize_embeddings=True)
+    return [v.tolist() for v in vectors]

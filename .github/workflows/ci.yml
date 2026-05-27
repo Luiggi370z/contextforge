@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend
+        working-directory: backend
+        run: uv sync --extra dev
+      - name: Ruff
+        working-directory: backend
+        run: uv run ruff check .
+      - name: Pyright
+        working-directory: backend
+        run: uv run pyright
+      - name: Pytest
+        working-directory: backend
+        env:
+          EMBEDDING_BACKEND: hash
+          LLM_PROVIDER: heuristic
+        run: uv run pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install web
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Biome
+        working-directory: web
+        run: pnpm exec biome check .
+      - name: Vitest
+        working-directory: web
+        run: pnpm test

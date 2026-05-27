@@ -1,0 +1,72 @@
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.pyrightcache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.hypothesis/
+uv.lock.bak
+
+# --- Node / web ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.pnpm-store/
+.turbo/
+coverage/
+
+# --- Vite / Vitest ---
+*.tsbuildinfo
+
+# --- IDE & OS ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Docker / local data ---
+postgres_data/
+qdrant_data/
+.qdrant_storage/
+
+# --- ML / embeddings cache (large) ---
+.cache/
+models/
+*.pt
+*.bin
+*.onnx
+
+# --- Project outputs ---
+reports/
+*.log
+logs/
+
+# --- Misc ---
+*.bak
+.cursor/
+
+# --- Docs ---
+docs/

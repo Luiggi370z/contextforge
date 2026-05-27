@@ -1,0 +1,5 @@
+{"question": "How many PTO days do full-time employees accrue per year?", "ground_truth": "20 PTO days per calendar year", "reference_doc": "policy_pto.md"}
+{"question": "Can unused PTO roll over?", "ground_truth": "Yes, up to 10 days capped", "reference_doc": "policy_pto.md"}
+{"question": "How much notice is required for PTO requests?", "ground_truth": "At least two weeks notice", "reference_doc": "policy_pto.md"}
+{"question": "How many remote work days are allowed per week?", "ground_truth": "Up to three days per week", "reference_doc": "policy_remote_work.md"}
+{"question": "What are core collaboration hours for remote workers?", "ground_truth": "10:00-16:00 local timezone", "reference_doc": "policy_remote_work.md"}
