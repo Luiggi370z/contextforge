@@ -69,4 +69,4 @@ async def test_query_stream_returns_multiple_sse_events():
     done_events = [event for event in events if event["type"] == SSE_EVENT_DONE]
     assert len(token_events) >= 1
     assert len(done_events) == 1
-    assert done_events[0]["result"]["thread_id"] == str(thread_id)
+    assert done_events[0]["result"]["threadId"] == str(thread_id)

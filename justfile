@@ -43,10 +43,10 @@ web-test:
     cd web && pnpm test
 
 web-lint:
-    cd web && pnpm exec biome check .
+    cd web && pnpm lint
 
 web-format:
-    cd web && pnpm exec biome format --write .
+    cd web && pnpm format
 
 # All checks (CI locally)
 check: lint web-lint test web-test

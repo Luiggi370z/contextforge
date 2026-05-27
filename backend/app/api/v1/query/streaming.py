@@ -14,6 +14,7 @@ from app.core.constants import (
     SSE_STAGE_STARTED,
     SSE_STREAM_WORD_CHUNK_SIZE,
 )
+from app.schemas.errors import ErrorResponse
 
 
 def format_sse_event(event_type: str, payload: dict[str, object]) -> str:
@@ -53,13 +54,13 @@ async def stream_query_events(result: QueryResponse) -> AsyncIterator[str]:
 
     yield format_sse_event(
         SSE_EVENT_DONE,
-        {"result": result.model_dump(mode="json")},
+        {"result": result.model_dump(mode="json", by_alias=True)},
     )
 
 
 async def stream_error_event(detail: str, correlation_id: str | None = None) -> AsyncIterator[str]:
     """Yield a single SSE error frame."""
-    payload: dict[str, object] = {"detail": detail}
-    if correlation_id:
-        payload["correlation_id"] = correlation_id
-    yield format_sse_event(SSE_EVENT_ERROR, payload)
+    error_body = ErrorResponse(detail=detail, correlation_id=correlation_id).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    yield format_sse_event(SSE_EVENT_ERROR, error_body)

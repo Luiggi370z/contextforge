@@ -8,10 +8,12 @@ export function Citations({ citations }: Props) {
   if (!citations.length) return null;
   return (
     <div className="mt-2 space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Sources</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        Sources
+      </p>
       {citations.map((c, i) => (
         <details
-          key={`${c.chunk_id ?? i}`}
+          key={`${c.chunkId ?? i}`}
           className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 text-sm"
         >
           <summary className="cursor-pointer text-slate-300">

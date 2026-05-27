@@ -32,7 +32,7 @@ async def test_app_exception_returns_json_error_body():
     assert response.status_code == 400
     body = response.json()
     assert body["detail"] == "Bad request sample"
-    assert "correlation_id" in body
+    assert "correlationId" in body
 
 
 @pytest.mark.asyncio

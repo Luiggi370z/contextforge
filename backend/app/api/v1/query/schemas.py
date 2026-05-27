@@ -1,26 +1,27 @@
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
+
+from app.schemas.base import BaseRequest, BaseResponse
 
 RouteKind = Literal["direct", "single_hop_rag", "multi_hop", "unknown"]
 
 
-class QueryRequest(BaseModel):
+class QueryRequest(BaseRequest):
     message: str = Field(..., min_length=1)
     thread_id: uuid.UUID | None = None
     # TODO(retrieval-backend-ui): optional retrieval_backend: Literal["qdrant", "postgres"] | None
-    # so the React settings toggle can override server default per query without restart.
 
 
-class Citation(BaseModel):
+class Citation(BaseResponse):
     document_id: uuid.UUID | None = None
     chunk_id: uuid.UUID | None = None
     snippet: str
     score: float | None = None
 
 
-class QueryMetadata(BaseModel):
+class QueryMetadata(BaseResponse):
     route: RouteKind = "unknown"
     abstained: bool = False
     nodes_visited: list[str] = Field(default_factory=list)
@@ -28,7 +29,7 @@ class QueryMetadata(BaseModel):
     graph_checkpoint_enabled: bool = False
 
 
-class QueryResponse(BaseModel):
+class QueryResponse(BaseResponse):
     answer: str
     thread_id: uuid.UUID | None = None
     citations: list[Citation] = Field(default_factory=list)

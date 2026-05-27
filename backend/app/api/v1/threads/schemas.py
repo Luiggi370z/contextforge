@@ -1,28 +1,30 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
+
+from app.schemas.base import BaseRequest, BaseResponse
 
 
-class ThreadCreate(BaseModel):
+class ThreadCreate(BaseRequest):
     title: str | None = Field(default=None, max_length=256)
 
 
-class ThreadResponse(BaseModel):
+class ThreadResponse(BaseResponse):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     title: str | None
     created_at: datetime
 
-    model_config = {"from_attributes": True}
 
+class MessageResponse(BaseResponse):
+    model_config = ConfigDict(from_attributes=True)
 
-class MessageResponse(BaseModel):
     id: uuid.UUID
     role: str
     content: str
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class ThreadDetailResponse(ThreadResponse):

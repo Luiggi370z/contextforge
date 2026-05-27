@@ -7,7 +7,7 @@ interface StreamPayload {
   content?: string;
   stage?: string;
   detail?: string;
-  correlation_id?: string;
+  correlationId?: string;
   result?: QueryResponse;
 }
 
@@ -20,7 +20,7 @@ export async function streamQuery(
   const res = await fetch("/v1/query/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, thread_id: threadId }),
+    body: JSON.stringify({ message, threadId }),
   });
   if (!res.ok) throw new Error(`Query failed: ${res.status}`);
   if (!res.body) throw new Error("No response body");

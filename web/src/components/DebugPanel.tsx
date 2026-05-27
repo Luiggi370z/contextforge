@@ -16,19 +16,22 @@ export function DebugPanel({ metadata }: Props) {
         <span className="text-amber-400">route</span> {metadata.route}
       </p>
       <p>
-        <span className="text-amber-400">abstained</span> {String(metadata.abstained)}
+        <span className="text-amber-400">abstained</span>{" "}
+        {String(metadata.abstained)}
       </p>
       <p>
-        <span className="text-amber-400">nodes</span> {metadata.nodes_visited.join(" → ")}
+        <span className="text-amber-400">nodes</span>{" "}
+        {metadata.nodesVisited.join(" → ")}
       </p>
       <p>
         <span className="text-amber-400">scores</span>{" "}
-        {metadata.retrieval_scores.map((s) => s.toFixed(3)).join(", ") || "—"}
+        {metadata.retrievalScores.map((score) => score.toFixed(3)).join(", ") ||
+          "—"}
       </p>
-      {metadata.graph_checkpoint_enabled !== undefined && (
+      {metadata.graphCheckpointEnabled !== undefined && (
         <p>
           <span className="text-amber-400">checkpoint</span>{" "}
-          {String(metadata.graph_checkpoint_enabled)}
+          {String(metadata.graphCheckpointEnabled)}
         </p>
       )}
     </div>

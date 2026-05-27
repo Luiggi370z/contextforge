@@ -13,7 +13,7 @@ async def test_metrics_endpoint():
         res = await client.get("/v1/metrics")
     assert res.status_code == 200
     data = res.json()
-    assert "queries_total" in data
+    assert "queriesTotal" in data
 
 
 @pytest.mark.asyncio

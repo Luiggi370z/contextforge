@@ -30,7 +30,7 @@ def register_exception_handlers(application: FastAPI) -> None:
             content=ErrorResponse(
                 detail=exc.detail,
                 correlation_id=exc.correlation_id,
-            ).model_dump(),
+            ).model_dump(mode="json", by_alias=True),
         )
 
     @application.exception_handler(Exception)
@@ -45,5 +45,7 @@ def register_exception_handlers(application: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=ErrorResponse(detail=ERROR_INTERNAL_SERVER).model_dump(),
+            content=ErrorResponse(detail=ERROR_INTERNAL_SERVER).model_dump(
+                mode="json", by_alias=True
+            ),
         )

@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.schemas.base import BaseResponse
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(BaseResponse):
     """Standard JSON error body for API clients."""
 
     detail: str

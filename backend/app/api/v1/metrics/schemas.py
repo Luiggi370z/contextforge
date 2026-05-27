@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from app.schemas.base import BaseResponse
 
 
-class MetricsResponse(BaseModel):
+class MetricsResponse(BaseResponse):
     queries_total: int
     ingests_total: int

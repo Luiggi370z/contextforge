@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from app.schemas.base import BaseResponse
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(BaseResponse):
     status: str
     app_env: str
