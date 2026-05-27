@@ -1,4 +1,8 @@
-"""Embedding providers — hash backend for fast tests, sentence-transformers for real use."""
+"""Embedding providers — hash backend for fast tests, sentence-transformers for real use.
+
+TODO(retrieval-backend): Same vectors feed Qdrant upsert today; in postgres mode, write to
+``chunks.embedding`` (pgvector) at ingest time via app/ingestion/service.py.
+"""
 
 from __future__ import annotations
 

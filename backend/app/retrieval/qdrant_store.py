@@ -21,6 +21,10 @@ class VectorRecord:
     score: float
 
 
+# TODO(retrieval-backend): Keep as Qdrant implementation of a shared VectorStore protocol.
+# Postgres alternative: app/retrieval/postgres_vector_store.py (pgvector HNSW/IVFFlat).
+
+
 class QdrantStore:
     def __init__(self) -> None:
         settings = get_settings()

@@ -9,6 +9,8 @@ RouteKind = Literal["direct", "single_hop_rag", "multi_hop", "unknown"]
 class QueryRequest(BaseModel):
     message: str = Field(..., min_length=1)
     thread_id: uuid.UUID | None = None
+    # TODO(retrieval-backend-ui): optional retrieval_backend: Literal["qdrant", "postgres"] | None
+    # so the React settings toggle can override server default per query without restart.
 
 
 class Citation(BaseModel):

@@ -29,5 +29,24 @@ ERROR_THREAD_NOT_FOUND = "Thread not found"
 ERROR_INTERNAL_SERVER = "Internal server error"
 ERROR_INVALID_UPLOAD = "Upload could not be processed"
 
+# Chunking (recursive splitter)
+CHUNK_SIZE_CHARS = 800
+CHUNK_OVERLAP_CHARS = 120
+DEFAULT_MARKDOWN_CONTENT_TYPE = "text/markdown"
+
+# Rerank backends
+RERANK_BACKEND_LEXICAL = "lexical"
+RERANK_BACKEND_CROSS_ENCODER = "cross_encoder"
+CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# Retrieval store backends (see app/retrieval/factory.py)
+RETRIEVAL_BACKEND_QDRANT = "qdrant"
+RETRIEVAL_BACKEND_POSTGRES = "postgres"
+
 # RRF default
 RRF_RANK_CONSTANT = 60
+
+# Lexical rerank blend weights
+RERANK_BASE_SCORE_WEIGHT = 0.7
+RERANK_LEXICAL_OVERLAP_WEIGHT = 0.3
+LEXICAL_OVERLAP_EPSILON = 1e-9

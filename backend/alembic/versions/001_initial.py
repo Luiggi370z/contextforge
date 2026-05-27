@@ -1,5 +1,8 @@
 """initial schema
 
+TODO(retrieval-backend): Add migration 002 for pgvector extension, chunks.embedding,
+chunks.content_tsv (generated), and GIN indexes when RETRIEVAL_BACKEND=postgres is implemented.
+
 Revision ID: 001_initial
 Revises:
 Create Date: 2026-05-26

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.v1 import documents, health, metrics, query, threads
 from app.core.constants import API_V1_PREFIX
 
+
 def build_api_router() -> APIRouter:
     """Register all HTTP routers under the v1 prefix.
 

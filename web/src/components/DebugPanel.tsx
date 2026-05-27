@@ -1,3 +1,7 @@
+// TODO(retrieval-backend-ui): Add a settings control here (or a sibling Settings drawer) to let
+// the user pick retrieval_backend: "qdrant" | "postgres", persist in localStorage, and send
+// with POST /v1/query and document ingest once the API supports per-request overrides.
+
 import type { QueryMetadata } from "../types";
 
 interface Props {

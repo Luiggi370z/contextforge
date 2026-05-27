@@ -10,7 +10,8 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph import nodes
 from app.graph.state import GraphState
-from app.retrieval.hybrid import RetrievedChunk, hybrid_retrieve
+from app.retrieval.hybrid import hybrid_retrieve
+from app.retrieval.models import RetrievedChunk
 
 log = structlog.get_logger(__name__)
 
@@ -36,6 +37,7 @@ async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
     query = state.get("query", "")
     route = state.get("route", "single_hop_rag")
 
+    # TODO(retrieval-backend): use hybrid_retrieve_configured(db, query, qdrant=qdrant)
     chunks: list[RetrievedChunk] = await hybrid_retrieve(db, qdrant, query)
     if route == "multi_hop" and len(chunks) > 2:
         extra = await hybrid_retrieve(db, qdrant, f"{query} details")

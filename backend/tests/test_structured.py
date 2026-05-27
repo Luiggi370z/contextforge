@@ -1,7 +1,7 @@
 import uuid
 
 from app.llm.structured import _heuristic_route, grade_retrieval
-from app.retrieval.hybrid import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 
 
 def test_heuristic_route_direct():

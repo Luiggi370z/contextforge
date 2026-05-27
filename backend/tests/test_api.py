@@ -1,11 +1,10 @@
-import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.api.v1.query.schemas import Citation, QueryMetadata, QueryResponse
+from app.main import app
 
 
 @pytest.mark.asyncio

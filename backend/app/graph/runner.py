@@ -3,10 +3,10 @@ from __future__ import annotations
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.query.schemas import Citation, QueryMetadata, QueryRequest, QueryResponse
 from app.db.models import Message, Thread
 from app.graph.pipeline import run_agent_pipeline
 from app.retrieval.qdrant_store import get_qdrant_store
-from app.api.v1.query.schemas import Citation, QueryMetadata, QueryRequest, QueryResponse
 
 log = structlog.get_logger(__name__)
 
@@ -29,6 +29,7 @@ async def run_query(body: QueryRequest, db: AsyncSession) -> QueryResponse:
     db.add(Message(thread_id=thread_id, role="user", content=body.message))
     await db.commit()
 
+    # TODO(retrieval-backend): use get_vector_store() from app.retrieval.factory
     qdrant = get_qdrant_store()
     state = await run_agent_pipeline(body.message, db, qdrant)
 

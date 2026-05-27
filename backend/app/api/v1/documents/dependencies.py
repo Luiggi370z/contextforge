@@ -14,4 +14,5 @@ def get_document_service() -> DocumentService:
 
 def get_qdrant() -> QdrantStore:
     """Qdrant client used during ingestion."""
+    # TODO(retrieval-backend): replace with get_vector_store() from app.retrieval.factory
     return get_qdrant_store()

@@ -1,8 +1,8 @@
 """Register global FastAPI exception handlers."""
 
+import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
-import structlog
 
 from app.core.constants import ERROR_INTERNAL_SERVER
 from app.core.exceptions import AppException

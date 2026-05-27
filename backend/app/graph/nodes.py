@@ -9,7 +9,7 @@ from app.llm.structured import (
     grade_retrieval,
     validate_answer,
 )
-from app.retrieval.hybrid import RetrievedChunk
+from app.retrieval.models import RetrievedChunk
 
 log = structlog.get_logger(__name__)
 

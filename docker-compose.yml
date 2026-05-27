@@ -1,4 +1,6 @@
 services:
+  # TODO(retrieval-backend): For RETRIEVAL_BACKEND=postgres, use pgvector-enabled image
+  # (e.g. pgvector/pgvector:pg16) and make qdrant service optional via compose profile.
   postgres:
     image: postgres:16-alpine
     environment:

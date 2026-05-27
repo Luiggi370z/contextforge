@@ -27,6 +27,8 @@ class Chunk(Base):
     chunk_index: Mapped[int] = mapped_column(nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    # TODO(retrieval-backend): add embedding Vector(dimension) via pgvector + GIN tsvector column
+    # when RETRIEVAL_BACKEND=postgres; qdrant_point_id optional / unused in that mode.
     qdrant_point_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     document: Mapped["Document"] = relationship(back_populates="chunks")
 

@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.core.constants import DEFAULT_MARKDOWN_CONTENT_TYPE
+
 
 class DocumentResponse(BaseModel):
     id: uuid.UUID
@@ -22,4 +24,4 @@ class DocumentListResponse(BaseModel):
 class IngestTextRequest(BaseModel):
     filename: str = Field(..., min_length=1, max_length=512)
     content: str = Field(..., min_length=1)
-    content_type: str = "text/markdown"
+    content_type: str = DEFAULT_MARKDOWN_CONTENT_TYPE

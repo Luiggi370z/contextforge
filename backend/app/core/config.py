@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://contextforge:contextforge@localhost:5433/contextforge"
     )
+    # TODO(retrieval-backend): Branch ingest/retrieve on this when Postgres profile ships.
+    # Values: qdrant (default) | postgres (pgvector dense + tsvector FTS).
+    retrieval_backend: str = "qdrant"
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "contextforge"
 
@@ -29,6 +32,7 @@ class Settings(BaseSettings):
 
     retrieval_top_k: int = 20
     rerank_top_n: int = 5
+    rerank_backend: str = "lexical"
     grade_min_score: float = 0.25
 
     @property
