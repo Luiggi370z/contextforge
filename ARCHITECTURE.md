@@ -65,7 +65,7 @@ See [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md): no single-char variabl
 |------|--------|
 | API | FastAPI, Pydantic v2, structlog |
 | LLM structured output | Instructor (+ heuristics fallback), shared models in `app/llm/models.py` |
-| Orchestration | Imperative pipeline mirroring LangGraph nodes; Postgres checkpointer on startup |
+| Orchestration | LangGraph `StateGraph` compiled at startup; optional `AsyncPostgresSaver` checkpointer; `thread_id` per query |
 | Frontend | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
 | Tasks | `just` (not Make) |
 

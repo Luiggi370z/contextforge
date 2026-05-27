@@ -15,6 +15,11 @@ from app.core.constants import (
 )
 from app.retrieval.models import RetrievedChunk
 
+try:
+    from sentence_transformers import CrossEncoder
+except ImportError:  # optional ``ml`` extra
+    CrossEncoder = None  # type: ignore[misc, assignment]
+
 log = structlog.get_logger(__name__)
 
 _cross_encoder_model = None
@@ -25,7 +30,11 @@ def _get_cross_encoder():
     global _cross_encoder_model
     if _cross_encoder_model is not None:
         return _cross_encoder_model
-    from sentence_transformers import CrossEncoder
+    if CrossEncoder is None:
+        raise ImportError(
+            "sentence-transformers is required for cross-encoder rerank. "
+            "Install with: uv sync --extra ml"
+        )
 
     _cross_encoder_model = CrossEncoder(CROSS_ENCODER_MODEL_NAME)
     return _cross_encoder_model

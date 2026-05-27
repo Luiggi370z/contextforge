@@ -9,6 +9,8 @@ from app.retrieval.qdrant_store import QdrantStore, get_qdrant_store
 @lru_cache
 def get_document_service() -> DocumentService:
     """Singleton document service for request handlers."""
+    # TODO(session-in-service-di): return DocumentService(session=Depends(get_db)) per request;
+    # drop @lru_cache and pass session on each route method.
     return DocumentService()
 
 

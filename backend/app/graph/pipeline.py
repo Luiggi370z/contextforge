@@ -18,12 +18,16 @@ async def run_agent_pipeline(
     qdrant: QdrantStore,
     *,
     checkpointer: object | None = None,
+    compiled_graph: object | None = None,
+    thread_id: str | None = None,
 ) -> GraphState:
     state = await invoke_agent_graph(
         query,
         db=db,
         qdrant=qdrant,
         checkpointer=checkpointer,
+        compiled_graph=compiled_graph,
+        thread_id=thread_id,
     )
     log.info(
         "pipeline_complete",

@@ -25,6 +25,7 @@ class QueryMetadata(BaseModel):
     abstained: bool = False
     nodes_visited: list[str] = Field(default_factory=list)
     retrieval_scores: list[float] = Field(default_factory=list)
+    graph_checkpoint_enabled: bool = False
 
 
 class QueryResponse(BaseModel):

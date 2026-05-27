@@ -23,6 +23,17 @@ GRAPH_NODE_GRADE = "grade_context"
 GRAPH_NODE_GENERATE = "generate"
 GRAPH_NODE_VALIDATE = "validate_answer"
 
+# LangGraph / agent messages
+THREAD_TITLE_MAX_CHARS = 80
+CITATION_SNIPPET_MAX_CHARS = 240
+ABSTAIN_MESSAGE = (
+    "I don't have enough information in the indexed documents to answer that."
+)
+DIRECT_GREETING_RESPONSE = (
+    "Hello! I am ContextForge. Upload policy documents and ask questions "
+    "about them — I will cite sources from your corpus."
+)
+
 # HTTP error messages (client-facing)
 ERROR_DOCUMENT_NOT_FOUND = "Document not found"
 ERROR_THREAD_NOT_FOUND = "Thread not found"

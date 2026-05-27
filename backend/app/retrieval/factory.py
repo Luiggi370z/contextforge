@@ -6,7 +6,7 @@ TODO(retrieval-backend): Implement and wire:
   - ``get_vector_store()`` / ``hybrid_retrieve_configured()`` — branch on
     ``settings.retrieval_backend`` (``RETRIEVAL_BACKEND_QDRANT`` | ``RETRIEVAL_BACKEND_POSTGRES``)
   - Alembic migration: enable pgvector, add embedding + tsvector columns
-  - Docker: optional ``postgres:16`` image with pgvector; Qdrant service skippable when postgres mode
+  - Docker: pgvector image; Qdrant optional when postgres mode
 
 See ARCHITECTURE.md § Pluggable retrieval backends.
 """

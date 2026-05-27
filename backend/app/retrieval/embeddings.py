@@ -14,6 +14,11 @@ import structlog
 
 from app.core.config import get_settings
 
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:  # optional ``ml`` extra — hash backend does not need it
+    SentenceTransformer = None  # type: ignore[misc, assignment]
+
 log = structlog.get_logger(__name__)
 _DIM = 384
 
@@ -28,8 +33,11 @@ def _hash_embed(text: str) -> list[float]:
 
 @lru_cache(maxsize=1)
 def _sentence_model():
-    from sentence_transformers import SentenceTransformer
-
+    if SentenceTransformer is None:
+        raise ImportError(
+            "sentence-transformers is required for embedding_backend != 'hash'. "
+            "Install with: uv sync --extra ml"
+        )
     settings = get_settings()
     log.info("loading_embedding_model", model=settings.embedding_model)
     return SentenceTransformer(settings.embedding_model)

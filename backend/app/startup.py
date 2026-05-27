@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.graph.builder import build_agent_graph
 from app.graph.checkpointer import postgres_checkpointer
 
 log = structlog.get_logger(__name__)
@@ -26,10 +27,12 @@ async def application_lifespan(application: FastAPI) -> AsyncIterator[None]:
 
     async with postgres_checkpointer() as checkpointer:
         application.state.checkpointer = checkpointer
+        application.state.agent_graph = build_agent_graph(checkpointer=checkpointer)
         if checkpointer is not None:
             log.info("langgraph_checkpointer_attached")
         else:
             log.warning("langgraph_checkpointer_unavailable")
+        log.info("langgraph_agent_compiled", with_checkpointer=checkpointer is not None)
         yield
 
     log.info("application_shutdown")

@@ -2,6 +2,16 @@ from __future__ import annotations
 
 import structlog
 
+from app.core.constants import (
+    ABSTAIN_MESSAGE,
+    CITATION_SNIPPET_MAX_CHARS,
+    GRAPH_NODE_GENERATE,
+    GRAPH_NODE_GRADE,
+    GRAPH_NODE_RETRIEVE,
+    GRAPH_NODE_ROUTE,
+    GRAPH_NODE_VALIDATE,
+    ROUTE_SINGLE_HOP_RAG,
+)
 from app.graph.state import GraphState
 from app.llm.structured import (
     decide_route,
@@ -18,7 +28,7 @@ async def route_node(state: GraphState) -> dict:
     query = state.get("query", "")
     decision = await decide_route(query)
     visited = list(state.get("nodes_visited", []))
-    visited.append("route")
+    visited.append(GRAPH_NODE_ROUTE)
     log.info("graph_route", route=decision.route, confidence=decision.confidence)
     return {
         "route": decision.route,
@@ -32,7 +42,7 @@ async def retrieve_node(
     chunks: list[RetrievedChunk],
 ) -> dict:
     visited = list(state.get("nodes_visited", []))
-    visited.append("retrieve")
+    visited.append(GRAPH_NODE_RETRIEVE)
     documents = [
         {
             "chunk_id": str(c.chunk_id),
@@ -51,7 +61,7 @@ async def retrieve_node(
 
 async def grade_node(state: GraphState, *, chunks: list[RetrievedChunk]) -> dict:
     visited = list(state.get("nodes_visited", []))
-    visited.append("grade_context")
+    visited.append(GRAPH_NODE_GRADE)
     grade = grade_retrieval(chunks, state.get("query", ""))
     return {
         "abstained": grade.should_abstain,
@@ -61,19 +71,19 @@ async def grade_node(state: GraphState, *, chunks: list[RetrievedChunk]) -> dict
 
 async def generate_node(state: GraphState) -> dict:
     visited = list(state.get("nodes_visited", []))
-    visited.append("generate")
-    route = state.get("route", "single_hop_rag")
+    visited.append(GRAPH_NODE_GENERATE)
+    route = state.get("route", ROUTE_SINGLE_HOP_RAG)
     docs = state.get("documents", [])
     contexts = [d["content"] for d in docs]
     if state.get("abstained"):
-        answer = "I don't have enough information in the indexed documents to answer that."
+        answer = ABSTAIN_MESSAGE
     else:
         answer = generate_from_context(state.get("query", ""), contexts, route)  # type: ignore[arg-type]
     citations = [
         {
             "chunk_id": d.get("chunk_id"),
             "document_id": d.get("document_id"),
-            "snippet": d.get("content", "")[:240],
+            "snippet": d.get("content", "")[:CITATION_SNIPPET_MAX_CHARS],
             "score": d.get("score"),
         }
         for d in docs
@@ -83,13 +93,13 @@ async def generate_node(state: GraphState) -> dict:
 
 async def validate_node(state: GraphState) -> dict:
     visited = list(state.get("nodes_visited", []))
-    visited.append("validate_answer")
+    visited.append(GRAPH_NODE_VALIDATE)
     docs = state.get("documents", [])
     contexts = [d["content"] for d in docs]
     validation = validate_answer(state.get("answer", ""), contexts)
     if not validation.grounded and not state.get("abstained"):
         return {
-            "answer": "I don't have enough information in the indexed documents to answer that.",
+            "answer": ABSTAIN_MESSAGE,
             "abstained": True,
             "nodes_visited": visited,
         }

@@ -8,6 +8,7 @@ import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
+from app.core.constants import ROUTE_DIRECT
 from app.graph import nodes
 from app.graph.state import GraphState
 from app.retrieval.hybrid import hybrid_retrieve
@@ -25,7 +26,7 @@ async def _route(state: GraphState, config: RunnableConfig) -> dict:
 
 
 def _after_route(state: GraphState) -> Literal["retrieve", "generate"]:
-    if state.get("route") == "direct":
+    if state.get("route") == ROUTE_DIRECT:
         return "generate"
     return "retrieve"
 
@@ -94,8 +95,11 @@ async def invoke_agent_graph(
     db: Any,
     qdrant: Any,
     checkpointer: Any | None = None,
+    compiled_graph: Any | None = None,
+    thread_id: str | None = None,
 ) -> GraphState:
-    compiled = build_agent_graph(checkpointer=checkpointer)
+    """Run the agent graph; ``thread_id`` enables Postgres checkpoint resume."""
+    compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
     initial: GraphState = {
         "query": query,
         "nodes_visited": [],
@@ -104,7 +108,10 @@ async def invoke_agent_graph(
         "abstained": False,
         "retrieval_scores": [],
     }
-    config: RunnableConfig = {"configurable": {"db": db, "qdrant": qdrant}}
+    configurable: dict[str, Any] = {"db": db, "qdrant": qdrant}
+    if thread_id is not None:
+        configurable["thread_id"] = thread_id
+    config: RunnableConfig = {"configurable": configurable}
     result = await compiled.ainvoke(initial, config=config)
     if isinstance(result, dict):
         result.pop("_chunks", None)

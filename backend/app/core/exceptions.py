@@ -6,7 +6,12 @@ import uuid
 
 import structlog
 
-from app.core.constants import ERROR_INTERNAL_SERVER
+from app.core.constants import (
+    ERROR_DOCUMENT_NOT_FOUND,
+    ERROR_INTERNAL_SERVER,
+    ERROR_INVALID_UPLOAD,
+    ERROR_THREAD_NOT_FOUND,
+)
 
 
 def resolve_correlation_id(explicit: str | None = None) -> str:
@@ -66,12 +71,6 @@ class IngestionError(DomainError):
 
 def domain_error_to_app_exception(error: DomainError) -> AppException:
     """Map a domain error to an HTTP AppException for route handlers."""
-    from app.core.constants import (
-        ERROR_DOCUMENT_NOT_FOUND,
-        ERROR_INVALID_UPLOAD,
-        ERROR_THREAD_NOT_FOUND,
-    )
-
     if isinstance(error, DocumentNotFoundError):
         return AppException(detail=ERROR_DOCUMENT_NOT_FOUND, status_code=404)
     if isinstance(error, ThreadNotFoundError):
