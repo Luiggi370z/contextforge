@@ -16,6 +16,9 @@ migrate:
 seed:
     cd backend && uv run python ../scripts/seed_corpus.py
 
+demo:
+    bash scripts/demo.sh
+
 eval-dry:
     cd backend && uv run python ../eval/run_ragas.py --dry-run
 

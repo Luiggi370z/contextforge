@@ -1,86 +1,105 @@
 # ContextForge
 
-Agentic RAG platform for portfolio demos: **LangGraph-style pipeline**, **FastAPI**, **hybrid retrieval** (dense + BM25 + RRF), **PostgreSQL**, **Qdrant**, and a **Vite/React** chat UI with route debug visibility.
+ContextForge is an agentic RAG portfolio project: FastAPI + LangGraph orchestration, hybrid retrieval (Qdrant dense + BM25 + RRF), and a React chat UI with debug visibility.
 
-**Implementation plan:** [docs/PLAN.md](docs/PLAN.md) · **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Coding standards:** [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
+- Plan: [docs/PLAN.md](docs/PLAN.md)
+- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Coding standards: [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
+
+## Why this project
+
+This repo demonstrates production-minded RAG behaviors:
+- route selection (`direct`, `single_hop_rag`, `multi_hop`)
+- retrieval grading + abstain path
+- grounded answers with citations
+- measurable quality with RAGAS/heuristic eval runs
+- full-stack developer workflow (API + UI + tests + CI)
 
 ## Quick start
 
-Prerequisites: [Docker](https://docs.docker.com/), [uv](https://docs.astral.sh/uv/), [just](https://github.com/casey/just), [pnpm](https://pnpm.io/).
+Prereqs: [Docker](https://docs.docker.com/), [uv](https://docs.astral.sh/uv/), [just](https://github.com/casey/just), [pnpm](https://pnpm.io/).
 
 ```bash
 cp .env.example .env
 just up
 just migrate
 cd backend && uv sync --extra dev
-just api-dev          # terminal 1 — http://localhost:8000/docs
-just web-install && just web-dev   # terminal 2 — http://localhost:5173
-just seed             # ingest sample_corpus/ (API must be running)
+just api-dev                 # terminal 1: http://localhost:8000/docs
+just web-install && just web-dev  # terminal 2: http://localhost:5173
+just seed                    # terminal 3, optional: load sample docs
 ```
 
-## Demo script (~2 min)
+## Demo (2 minutes)
 
-1. Open http://localhost:5173 — toggle **Debug** on.
-2. Upload or run `just seed` for sample HR policies.
-3. Ask **"hi"** → route `direct`.
-4. Ask **"How many PTO days per year?"** → `single_hop_rag` + citations.
-5. Ask **"Compare PTO policy steps and remote work steps"** → `multi_hop`.
-6. Ask about something not in corpus → abstain path.
+Use the helper script:
+
+```bash
+just demo
+```
+
+Or run manually:
+1. Open `http://localhost:5173` and keep Debug on.
+2. Ask `hi` (direct route).
+3. Ask `How many PTO days do full-time employees accrue per year?` (single-hop RAG).
+4. Ask `Compare PTO policy steps with remote work approval steps` (multi-hop).
+5. Ask `What is the lunar habitat budget for 2099?` (abstain path).
+
+## API contract (important)
+
+- Backend Python fields are `snake_case`.
+- JSON contract is `camelCase` via `BaseRequest`/`BaseResponse` aliases.
+- Frontend TypeScript models are `camelCase`.
+
+Example request body:
+
+```json
+{
+  "message": "How many PTO days?",
+  "threadId": "00000000-0000-0000-0000-000000000002"
+}
+```
+
+## Evaluation
+
+```bash
+just eval-dry         # validate golden set only
+just eval-heuristic   # no OpenAI, lexical metrics
+just eval             # full RAGAS (requires OPENAI_API_KEY + running API)
+```
+
+Reports are written under `reports/` (gitignored).
+
+## Useful commands
+
+```bash
+just check         # backend + web lint/tests
+just lint          # backend: ruff + pyright
+just test          # backend: pytest
+just web-lint      # web: biome
+just web-test      # web: vitest
+```
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
-| API | FastAPI, SSE, Pydantic v2, structlog |
-| Agent | Route → retrieve → grade → generate → validate |
-| Retrieval | Qdrant + BM25 + RRF + rerank |
-| DB | PostgreSQL 16 (Docker, host port **5433**) |
-| UI | Vite, React, Tailwind v4, Biome, Vitest, **pnpm** |
-| QA | pytest, pyright, ruff · Biome · Vitest |
-| Tasks | **just** |
-
-## Commands
-
-```bash
-just check      # lint + test (backend + web)
-just test       # pytest
-just lint       # ruff + pyright
-just web-test   # vitest
-just seed       # load sample_corpus via API
-```
-
-## Evaluation (RAGAS)
-
-```bash
-# After seed + API running, with OPENAI_API_KEY set:
-cd backend && uv run python ../eval/run_ragas.py --dry-run
-cd backend && uv run python ../eval/run_ragas.py
-```
-
-Reports are written under `reports/`.
+| API | FastAPI, Pydantic v2, structlog, SSE |
+| Agent | LangGraph `StateGraph` |
+| Retrieval | Qdrant dense + BM25 + RRF + rerank |
+| DB | PostgreSQL 16 (host port `5433`) |
+| UI | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
+| Eval | RAGAS + heuristic metrics (`eval/`) |
+| Tasks | just |
 
 ## Project layout
 
-```
+```text
 contextforge/
-├── backend/          # FastAPI + agent pipeline
-├── web/              # React chat UI
-├── sample_corpus/    # Demo markdown docs
-├── eval/             # golden.jsonl + RAGAS runner
-├── scripts/          # seed_corpus.py
+├── backend/         # FastAPI + graph/retrieval code
+├── web/             # React chat UI
+├── eval/            # golden set + eval scripts
+├── sample_corpus/   # demo policy docs
+├── scripts/         # seed + demo helpers
 ├── docs/PLAN.md
 └── justfile
 ```
-
-## Configuration
-
-| Variable | Default | Notes |
-|----------|---------|--------|
-| `DATABASE_URL` | `localhost:5433` | Matches docker-compose host port |
-| `EMBEDDING_BACKEND` | `sentence-transformers` | Set `hash` for fast tests |
-| `LLM_PROVIDER` | `heuristic` | Set `openai` + `OPENAI_API_KEY` for Instructor routing |
-| `GRADE_MIN_SCORE` | `0.25` | Below this → abstain |
-
-## Status
-
-MVP implemented: ingestion, hybrid retrieval, agent pipeline, chat UI, CI, RAGAS runner stub. See [docs/PLAN.md](docs/PLAN.md) for stretch goals (HITL, Redis cache, A/B retrieval).

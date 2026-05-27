@@ -2,86 +2,102 @@
 
 ## Overview
 
-ContextForge is an agentic RAG platform: users upload documents, ask questions, and receive grounded answers with citations. A LangGraph-style pipeline routes queries, retrieves context with hybrid search, grades relevance, generates answers, and validates grounding.
+ContextForge is an agentic RAG system that ingests policy-like documents and answers user questions with citations. The runtime emphasizes:
+- explicit query routing
+- hybrid retrieval
+- abstain behavior when context is weak
+- end-to-end observability and evaluation
 
-## Data split
+## System boundaries
 
 | Store | Responsibility |
 |-------|----------------|
-| **PostgreSQL** | Documents, chunks (text + metadata), threads, messages, optional LangGraph checkpoint tables |
-| **Qdrant** | Dense vectors for semantic retrieval (chunk id as point id) |
+| **PostgreSQL** | Documents, chunks, threads, messages, optional LangGraph checkpoint tables |
+| **Qdrant** | Dense vector ANN retrieval (`chunk_id` as point id) |
 
-Vectors are not duplicated in Postgres beyond `qdrant_point_id` on chunks.
-
-### Pluggable retrieval backends (planned)
-
-| `RETRIEVAL_BACKEND` | Dense (semantic) | Sparse (lexical) | Status |
-|---------------------|------------------|------------------|--------|
-| `qdrant` (default) | Qdrant ANN | BM25 in Python over `chunks.content` | **Implemented** |
-| `postgres` | pgvector on `chunks.embedding` | Postgres FTS (`tsvector` + GIN) | **Planned** |
-
-Setting: `RETRIEVAL_BACKEND` in config (see `.env.example`). Code markers: grep `TODO(retrieval-backend)` or read `app/retrieval/factory.py` for the integration checklist.
-
-**UI-selectable backend (planned):** Operators or demo users choose Qdrant vs Postgres retrieval from the React chat UI; the choice is sent on query (and ingest) requests and applied via `app/retrieval/factory.py` (see `TODO(retrieval-backend-ui)` at the bottom of that file). Server env remains the default when the UI does not override.
+Qdrant remains the active vector backend today. `chunks.qdrant_point_id` links relational rows to vector points.
 
 ## Request flow
 
 ```mermaid
 flowchart LR
-  UI[React chat] --> API[FastAPI]
-  API --> Pipeline[Agent pipeline]
-  Pipeline --> Route[Route]
-  Route --> Retrieve[Hybrid retrieve]
-  Retrieve --> Qdrant[(Qdrant)]
-  Retrieve --> BM25[BM25 on chunks]
-  Retrieve --> Grade[Grade context]
-  Grade --> Generate[Generate]
-  Generate --> Validate[Validate]
+  UI[React chat] --> API[FastAPI /v1/query]
+  API --> Graph[LangGraph StateGraph]
+  Graph --> Route[route]
+  Route --> Retrieve[retrieve]
+  Retrieve --> Dense[Qdrant dense search]
+  Retrieve --> Sparse[BM25 over chunks.content]
+  Dense --> Fuse[RRF + rerank]
+  Sparse --> Fuse
+  Fuse --> Grade[grade_context]
+  Grade --> Generate[generate]
+  Generate --> Validate[validate_answer]
   Validate --> API
-  Pipeline --> PG[(PostgreSQL)]
+  API --> UI
+  Graph --> PG[(PostgreSQL)]
 ```
 
-## Agent pipeline
+## Agent graph nodes
 
-1. **route** — `RouteDecision` via Instructor/heuristics (`direct` | `single_hop_rag` | `multi_hop`)
-2. **retrieve** — dense (Qdrant) + sparse (BM25) → RRF → lexical rerank
-3. **grade_context** — abstain if top score &lt; `GRADE_MIN_SCORE`
-4. **generate** — answer from contexts (or abstain message)
-5. **validate_answer** — lightweight grounding check
+1. **route** — classify as `direct`, `single_hop_rag`, or `multi_hop`
+2. **retrieve** — dense + sparse retrieval, RRF merge, rerank
+3. **grade_context** — decide abstain if top evidence score is below threshold
+4. **generate** — compose answer from retrieved contexts (or abstain response)
+5. **validate_answer** — final grounding check before return
+
+## API contract: snake_case internally, camelCase on the wire
+
+- Python model fields are `snake_case`
+- JSON payloads are `camelCase`
+- Request/response models inherit from `app/schemas/base.py`:
+  - `BaseRequest`
+  - `BaseResponse`
+
+This allows frontend clients to send `threadId` while tests/internal callers may still send `thread_id`.
 
 ## Design tradeoffs
 
-1. **Qdrant vs Postgres for vectors** — Qdrant for ANN search today; Postgres for relational state. Optional future mode consolidates vectors + FTS in Postgres (`RETRIEVAL_BACKEND=postgres`); see table above.
-2. **Hybrid retrieval** — BM25 catches exact policy terms; dense embeddings catch paraphrases. RRF merges ranked lists without score normalization.
-3. **Abstain vs always-answer** — Low retrieval grade returns a fixed abstain string instead of hallucinating; validator can also force abstain.
+1. **Qdrant + Postgres split**  
+   Keep relational state and vector search concerns separate; easier to reason about today, with a clear future path to Postgres-only retrieval if needed.
 
-## Conventions
+2. **Hybrid retrieval over dense-only**  
+   Dense search catches paraphrase; BM25 catches exact policy terms and numeric strings. RRF avoids brittle score normalization.
 
-See [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md): no single-char variables, concise docstrings with examples, Pydantic/dataclasses over dicts, DRY/YAGNI/SOLID, files under 300 lines, one TODO per review/commit cycle.
+3. **Abstain over forced answer**  
+   If evidence is weak, return a controlled abstain response rather than hallucinating.
+
+## Evaluation architecture
+
+Evaluation lives under `eval/`:
+- `golden.jsonl` — curated QA set (includes abstain case)
+- `run_ragas.py` — full RAGAS run + heuristic fallback mode
+- `golden_loader.py` — golden set validation
+- `heuristic_metrics.py` — lexical overlap and abstain checks
+- `report_writer.py` — JSON + markdown reports in `reports/`
+
+Run modes:
+- `just eval-dry` (schema/row validation only)
+- `just eval-heuristic` (no OpenAI required)
+- `just eval` (full RAGAS)
 
 ## Tooling
 
 | Area | Stack |
-|------|--------|
+|------|-------|
 | API | FastAPI, Pydantic v2, structlog |
-| LLM structured output | Instructor (+ heuristics fallback), shared models in `app/llm/models.py` |
-| Orchestration | LangGraph `StateGraph` compiled at startup; optional `AsyncPostgresSaver` checkpointer; `thread_id` per query |
+| Orchestration | LangGraph `StateGraph` + optional `AsyncPostgresSaver` |
+| Retrieval | Qdrant, rank-bm25, RRF, rerank |
 | Frontend | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
-| Tasks | `just` (not Make) |
+| Developer tasks | just |
 
-## Evaluation
+## Planned retrieval backend switch (optional)
 
-Golden Q/A pairs live in `eval/golden.jsonl`. Run `cd backend && uv run python ../eval/run_ragas.py` after seeding the corpus and starting the API (requires RAGAS dev deps + LLM API for full metrics).
+`RETRIEVAL_BACKEND` is already reserved in config:
+- `qdrant` (**implemented**)
+- `postgres` (**planned**: pgvector + FTS)
 
----
+Future plan is tracked with code markers:
+- `TODO(retrieval-backend)`
+- `TODO(retrieval-backend-ui)`
 
-## Future: UI-driven retrieval backend (optional Postgres path)
-
-When the Postgres profile (`pgvector` + FTS) is implemented, expose it as an **optional** mode alongside Qdrant:
-
-1. **Server default** — `RETRIEVAL_BACKEND` in `.env` / `Settings`.
-2. **Per-request override** — optional field on `QueryRequest` / ingest body (see `TODO(retrieval-backend-ui)` in `app/api/v1/query/schemas.py`).
-3. **React UI** — toggle in DebugPanel or a settings drawer; `localStorage` + send override on each query/upload.
-4. **Factory** — `app/retrieval/factory.py` applies override → env default; full checklist in `TODO(retrieval-backend-ui)` at the end of that file.
-
-Grep: `TODO(retrieval-backend-ui)`.
+Start point: `app/retrieval/factory.py`.
