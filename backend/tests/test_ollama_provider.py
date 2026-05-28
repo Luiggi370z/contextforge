@@ -33,22 +33,6 @@ class _FakeAsyncClient:
         return _FakeResponse(self._payload)
 
 
-class _FakeSyncClient:
-    def __init__(self, payload: dict):
-        self._payload = payload
-        self.calls: list[tuple[str, dict]] = []
-
-    def __enter__(self) -> "_FakeSyncClient":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        return None
-
-    def post(self, path: str, json: dict) -> _FakeResponse:
-        self.calls.append((path, json))
-        return _FakeResponse(self._payload)
-
-
 @pytest.mark.asyncio
 async def test_decide_route_parses_json(monkeypatch: pytest.MonkeyPatch):
     fake_client = _FakeAsyncClient(
@@ -70,15 +54,16 @@ async def test_decide_route_parses_json(monkeypatch: pytest.MonkeyPatch):
     assert fake_client.calls[0][1]["format"] == "json"
 
 
-def test_generate_from_context_returns_plain_text(monkeypatch: pytest.MonkeyPatch):
-    fake_client = _FakeSyncClient({"message": {"content": "Grounded answer from Ollama"}})
+@pytest.mark.asyncio
+async def test_generate_from_context_returns_plain_text(monkeypatch: pytest.MonkeyPatch):
+    fake_client = _FakeAsyncClient({"message": {"content": "Grounded answer from Ollama"}})
     monkeypatch.setattr(
         ollama_provider.httpx,
-        "Client",
+        "AsyncClient",
         lambda **_: fake_client,
     )
 
-    answer = ollama_provider.generate_from_context(
+    answer = await ollama_provider.generate_from_context(
         query="What is PTO?",
         contexts=["PTO is accrued monthly."],
         route="single_hop_rag",
@@ -89,17 +74,18 @@ def test_generate_from_context_returns_plain_text(monkeypatch: pytest.MonkeyPatc
     assert "format" not in fake_client.calls[0][1]
 
 
-def test_grade_retrieval_parses_structured_json(monkeypatch: pytest.MonkeyPatch):
-    fake_client = _FakeSyncClient(
+@pytest.mark.asyncio
+async def test_grade_retrieval_parses_structured_json(monkeypatch: pytest.MonkeyPatch):
+    fake_client = _FakeAsyncClient(
         {"message": {"content": '{"relevant":true,"score":0.8,"should_abstain":false}'}}
     )
     monkeypatch.setattr(
         ollama_provider.httpx,
-        "Client",
+        "AsyncClient",
         lambda **_: fake_client,
     )
 
-    grade = ollama_provider.grade_retrieval(
+    grade = await ollama_provider.grade_retrieval(
         query="PTO",
         chunks=[
             RetrievedChunk(

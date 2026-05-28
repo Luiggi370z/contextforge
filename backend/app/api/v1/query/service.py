@@ -56,7 +56,6 @@ class QueryService:
         await asyncio.sleep(0)
 
         try:
-            graph_stages: list[str] = []
             result: QueryResponse | None = None
             async for item in stream_query_graph(
                 body,
@@ -65,7 +64,6 @@ class QueryService:
                 compiled_graph=compiled_graph,
             ):
                 if isinstance(item, str):
-                    graph_stages.append(item)
                     yield format_sse_event(SSE_EVENT_STATUS, {"stage": item})
                     yield SSE_FLUSH_COMMENT
                     await asyncio.sleep(0)
@@ -88,7 +86,7 @@ class QueryService:
 
         async for frame in stream_query_events(
             result,
-            graph_stages=graph_stages,
+            graph_stages=[],
             emit_started=False,
         ):
             yield frame

@@ -9,21 +9,14 @@ import structlog
 from app.core.config import get_settings
 from app.core.constants import (
     ABSTAIN_MESSAGE,
-    CONTEXT_SELECTION_MIN_OVERLAP,
     DIRECT_GREETING_RESPONSE,
-    GRADE_MIN_QUERY_TERM_OVERLAP,
-    MAX_GENERATION_CONTEXTS,
     ROUTE_DIRECT,
     ROUTE_MULTI_HOP,
     ROUTE_SINGLE_HOP_RAG,
 )
-from app.llm.query_terms import (
-    discriminative_terms,
-    grading_terms,
-    query_term_overlap_ratio,
-    term_overlap_ratio,
-)
-from app.llm.models import AnswerValidation, RetrievalGrade, RouteDecision, RouteKind
+from app.llm.grading import grade_retrieval
+from app.llm.grading import select_chunks_for_generation
+from app.llm.models import AnswerValidation, RouteDecision, RouteKind
 from app.llm.ollama_provider import (
     decide_route as ollama_decide_route,
 )
@@ -33,6 +26,8 @@ from app.llm.ollama_provider import (
 from app.retrieval.models import RetrievedChunk
 
 log = structlog.get_logger(__name__)
+
+__all__ = ["grade_retrieval", "select_chunks_for_generation"]
 
 
 def _heuristic_route(message: str) -> RouteDecision:
@@ -78,7 +73,6 @@ async def decide_route(message: str) -> RouteDecision:
     if settings.llm_provider == "heuristic":
         return heuristic
     if settings.llm_provider == "ollama":
-        # Local models often label policy questions as direct; trust heuristics for RAG paths.
         if heuristic.route != ROUTE_DIRECT:
             return heuristic
         try:
@@ -97,96 +91,6 @@ async def decide_route(message: str) -> RouteDecision:
     except Exception as exc:
         log.warning("route_llm_fallback", error=str(exc))
         return heuristic
-
-
-def select_contexts_for_generation(
-    query: str,
-    contexts: list[str],
-    *,
-    retrieval_query: str | None = None,
-) -> list[str]:
-    """Return top snippets for generation/citations; exclude weak tangential matches."""
-    if not contexts:
-        return contexts
-    terms = grading_terms(query, retrieval_query)
-    if not terms:
-        return contexts[:MAX_GENERATION_CONTEXTS]
-
-    selection_terms = discriminative_terms(terms, contexts)
-    ranked = sorted(
-        contexts,
-        key=lambda ctx: term_overlap_ratio(selection_terms, ctx),
-        reverse=True,
-    )
-    selected = [
-        ctx
-        for ctx in ranked
-        if term_overlap_ratio(selection_terms, ctx) >= CONTEXT_SELECTION_MIN_OVERLAP
-    ]
-    if not selected:
-        selected = [ranked[0]]
-    return selected[:MAX_GENERATION_CONTEXTS]
-
-
-def grade_retrieval(
-    chunks: list[RetrievedChunk],
-    query: str,
-    *,
-    retrieval_query: str | None = None,
-) -> RetrievalGrade:
-    # Grading uses deterministic overlap + scores; Ollama grade was too permissive on weak matches.
-    return _heuristic_grade_retrieval(chunks, query, retrieval_query=retrieval_query)
-
-
-def _chunk_is_viable_for_query(
-    chunk: RetrievedChunk,
-    query: str,
-    *,
-    min_score: float,
-    retrieval_query: str | None = None,
-) -> bool:
-    overlap = query_term_overlap_ratio(query, chunk.content, retrieval_query=retrieval_query)
-    return (
-        chunk.grading_score() >= min_score
-        and overlap >= GRADE_MIN_QUERY_TERM_OVERLAP
-    )
-
-
-def _heuristic_grade_retrieval(
-    chunks: list[RetrievedChunk],
-    query: str,
-    *,
-    retrieval_query: str | None = None,
-) -> RetrievalGrade:
-    settings = get_settings()
-    if not chunks:
-        return RetrievalGrade(relevant=False, score=0.0, should_abstain=True)
-
-    terms = grading_terms(query, retrieval_query)
-    viable = [
-        chunk
-        for chunk in chunks
-        if _chunk_is_viable_for_query(
-            chunk,
-            query,
-            min_score=settings.grade_min_score,
-            retrieval_query=retrieval_query,
-        )
-    ]
-    should_abstain = not viable
-    best_chunk = max(
-        viable or chunks,
-        key=lambda chunk: (
-            term_overlap_ratio(terms, chunk.content),
-            chunk.grading_score(),
-        ),
-    )
-    top_score = best_chunk.grading_score()
-    return RetrievalGrade(
-        relevant=not should_abstain,
-        score=min(top_score, 1.0),
-        should_abstain=should_abstain,
-    )
 
 
 def validate_answer(answer: str, contexts: list[str]) -> AnswerValidation:
@@ -208,7 +112,7 @@ def _heuristic_validate_answer(answer: str, contexts: list[str]) -> AnswerValida
     return AnswerValidation(grounded=grounded, issues=issues)
 
 
-def generate_from_context(
+async def generate_from_context(
     query: str,
     contexts: list[str],
     route: RouteKind,
@@ -218,7 +122,7 @@ def generate_from_context(
     settings = get_settings()
     if settings.llm_provider == "ollama" and route != ROUTE_DIRECT and contexts:
         try:
-            return ollama_generate_from_context(
+            return await ollama_generate_from_context(
                 query=query,
                 contexts=contexts,
                 route=route,

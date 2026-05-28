@@ -14,12 +14,12 @@ from app.core.constants import (
     ROUTE_DIRECT,
     ROUTE_SINGLE_HOP_RAG,
 )
+from app.graph.chunks import chunks_from_state
 from app.graph.state import GraphState
+from app.llm.grading import grade_retrieval, select_chunks_for_generation
 from app.llm.structured import (
     decide_route,
     generate_from_context,
-    grade_retrieval,
-    select_contexts_for_generation,
     validate_answer,
 )
 from app.retrieval.dedupe import dedupe_citations
@@ -59,7 +59,7 @@ async def retrieve_node(
     ]
     return {
         "documents": documents,
-        "retrieval_scores": [chunk.grading_score() for chunk in chunks],
+        "retrieval_scores": [chunk.score for chunk in chunks],
         "nodes_visited": visited,
     }
 
@@ -67,10 +67,11 @@ async def retrieve_node(
 async def grade_node(state: GraphState, *, chunks: list[RetrievedChunk]) -> dict:
     visited = list(state.get("nodes_visited", []))
     visited.append(GRAPH_NODE_GRADE)
-    grade = grade_retrieval(
+    grade = await grade_retrieval(
         chunks,
         state.get("query", ""),
         retrieval_query=state.get("retrieval_query"),
+        chat_history=state.get("chat_history"),
     )
     return {
         "abstained": grade.should_abstain,
@@ -84,18 +85,14 @@ async def generate_node(state: GraphState) -> dict:
     route = state.get("route", ROUTE_SINGLE_HOP_RAG)
     docs = state.get("documents", [])
     query = state.get("query", "")
-    retrieval_query = state.get("retrieval_query")
-    all_contexts = [str(document["content"]) for document in docs]
-    contexts = select_contexts_for_generation(
-        query,
-        all_contexts,
-        retrieval_query=retrieval_query,
-    )
+    chunks = chunks_from_state(state)
+    selected_chunks = select_chunks_for_generation(chunks)
+    contexts = [chunk.content for chunk in selected_chunks]
     chat_history = state.get("chat_history") or []
     if state.get("abstained"):
         answer = ABSTAIN_MESSAGE
     else:
-        answer = generate_from_context(
+        answer = await generate_from_context(
             query,
             contexts,
             route,  # type: ignore[arg-type]
@@ -106,15 +103,12 @@ async def generate_node(state: GraphState) -> dict:
         citations = dedupe_citations(
             [
                 {
-                    "chunk_id": document.get("chunk_id"),
-                    "document_id": document.get("document_id"),
-                    "snippet": document.get("content", "")[:CITATION_SNIPPET_MAX_CHARS],
-                    "score": document.get("relevance_score")
-                    if document.get("relevance_score") is not None
-                    else document.get("score"),
+                    "chunk_id": str(chunk.chunk_id),
+                    "document_id": str(chunk.document_id),
+                    "snippet": chunk.content[:CITATION_SNIPPET_MAX_CHARS],
+                    "score": chunk.score,
                 }
-                for document in docs
-                if str(document.get("content", "")) in contexts
+                for chunk in selected_chunks
             ]
         )
     return {"answer": answer, "citations": citations, "nodes_visited": visited}

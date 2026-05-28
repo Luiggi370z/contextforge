@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from typing import Any, Literal
-from uuid import UUID
-
 import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
 from app.core.constants import ROUTE_DIRECT
 from app.graph import nodes
+from app.graph.chunks import chunks_from_state
 from app.graph.state import GraphState
 from app.retrieval.hybrid import hybrid_retrieve
 from app.retrieval.models import RetrievedChunk
@@ -44,46 +43,22 @@ async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
     # TODO(retrieval-backend): use hybrid_retrieve_configured(db, query, qdrant=qdrant)
     chunks: list[RetrievedChunk] = await hybrid_retrieve(db, qdrant, retrieval_query)
     if route == "multi_hop" and len(chunks) > 2:
+        initial_count = len(chunks)
         extra = await hybrid_retrieve(db, qdrant, f"{retrieval_query} details")
         seen = {str(chunk.chunk_id) for chunk in chunks}
         for chunk in extra:
             if str(chunk.chunk_id) not in seen:
                 chunks.append(chunk)
                 seen.add(str(chunk.chunk_id))
-        chunks = chunks[: max(3, len(chunks) // 2 + 3)]
+        chunks = chunks[: max(3, initial_count // 2 + 3)]
 
     out = await nodes.retrieve_node(state, chunks=chunks)
     out["_chunks"] = chunks
     return out
 
 
-def _chunks_from_state(state: GraphState) -> list[RetrievedChunk]:
-    stored = list(state.get("_chunks") or [])
-    if stored:
-        return stored
-    rebuilt: list[RetrievedChunk] = []
-    for document in state.get("documents", []):
-        chunk_id = document.get("chunk_id")
-        document_id = document.get("document_id")
-        content = document.get("content")
-        if chunk_id is None or document_id is None or content is None:
-            continue
-        score = float(document.get("score", 0.0))
-        relevance = document.get("relevance_score")
-        rebuilt.append(
-            RetrievedChunk(
-                chunk_id=UUID(str(chunk_id)),
-                document_id=UUID(str(document_id)),
-                content=str(content),
-                score=score,
-                relevance_score=float(relevance) if relevance is not None else None,
-            )
-        )
-    return rebuilt
-
-
 async def _grade(state: GraphState, config: RunnableConfig) -> dict:
-    chunks = _chunks_from_state(state)
+    chunks = chunks_from_state(state)
     return await nodes.grade_node(state, chunks=chunks)
 
 

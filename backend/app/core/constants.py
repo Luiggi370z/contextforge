@@ -54,12 +54,10 @@ CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RETRIEVAL_BACKEND_QDRANT = "qdrant"
 RETRIEVAL_BACKEND_POSTGRES = "postgres"
 
-# Retrieval grading
-GRADE_MIN_QUERY_TERM_OVERLAP = 0.15
-
-# Generation context + citations (tighter than grading; avoids tangential policy matches)
-CONTEXT_SELECTION_MIN_OVERLAP = 0.2
+# Generation context + citations (top reranked chunks after score threshold)
 MAX_GENERATION_CONTEXTS = 3
+# Additional chunks must be at least this fraction of the top rerank score (drops weak tail).
+CITATION_SCORE_RELATIVE_MIN = 0.9
 
 # Multi-turn chat
 CONVERSATION_HISTORY_LIMIT = 10

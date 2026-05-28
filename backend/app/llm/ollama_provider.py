@@ -77,23 +77,6 @@ async def _chat_async(
     return _extract_message_content(response.json())
 
 
-def _chat_sync(
-    *,
-    base_url: str,
-    model: str,
-    system_prompt: str,
-    user_prompt: str,
-    as_json: bool,
-) -> str:
-    payload = _build_chat_payload(
-        model=model, system_prompt=system_prompt, user_prompt=user_prompt, as_json=as_json
-    )
-    with httpx.Client(base_url=base_url, timeout=OLLAMA_TIMEOUT_SECONDS) as client:
-        response = client.post(OLLAMA_CHAT_ENDPOINT, json=payload)
-        response.raise_for_status()
-    return _extract_message_content(response.json())
-
-
 async def decide_route(
     message: str,
     *,
@@ -110,20 +93,22 @@ async def decide_route(
     return RouteDecision.model_validate(_parse_json_content(content))
 
 
-def grade_retrieval(
+async def grade_retrieval(
     *,
     query: str,
     chunks: list[RetrievedChunk],
     threshold: float,
     base_url: str,
     model: str,
+    conversation: str | None = None,
 ) -> RetrievalGrade:
     user_prompt = build_grade_user_prompt(
         query=query,
         threshold=threshold,
         contexts=[chunk.content for chunk in chunks],
+        conversation=conversation,
     )
-    content = _chat_sync(
+    content = await _chat_async(
         base_url=base_url,
         model=model,
         system_prompt=SYSTEM_PROMPT_GRADE,
@@ -133,7 +118,7 @@ def grade_retrieval(
     return RetrievalGrade.model_validate(_parse_json_content(content))
 
 
-def validate_answer(
+async def validate_answer(
     *,
     answer: str,
     contexts: list[str],
@@ -141,7 +126,7 @@ def validate_answer(
     model: str,
 ) -> AnswerValidation:
     user_prompt = build_validate_user_prompt(answer=answer, contexts=contexts)
-    content = _chat_sync(
+    content = await _chat_async(
         base_url=base_url,
         model=model,
         system_prompt=SYSTEM_PROMPT_VALIDATE,
@@ -172,7 +157,7 @@ async def condense_retrieval_query(
     )
 
 
-def generate_from_context(
+async def generate_from_context(
     *,
     query: str,
     contexts: list[str],
@@ -194,7 +179,7 @@ def generate_from_context(
         contexts=contexts,
         conversation=conversation,
     )
-    return _chat_sync(
+    return await _chat_async(
         base_url=base_url,
         model=model,
         system_prompt=SYSTEM_PROMPT_GENERATE,

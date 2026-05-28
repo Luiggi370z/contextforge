@@ -5,7 +5,7 @@ import pytest
 
 from app.graph.conversation import ChatTurn, format_chat_history
 from app.llm import retrieval_query
-from app.llm.structured import grade_retrieval
+from app.llm.grading import grade_retrieval
 from app.retrieval.models import RetrievedChunk
 
 
@@ -88,7 +88,8 @@ def test_format_chat_history_includes_roles():
     assert "Assistant: Hi" in text
 
 
-def test_grade_passes_follow_up_when_retrieval_query_carries_subject():
+@pytest.mark.asyncio
+async def test_grade_passes_follow_up_when_retrieval_query_carries_subject():
     security_chunk = RetrievedChunk(
         chunk_id=uuid.uuid4(),
         document_id=uuid.uuid4(),
@@ -98,7 +99,7 @@ def test_grade_passes_follow_up_when_retrieval_query_carries_subject():
         score=0.1,
         relevance_score=0.363,
     )
-    grade = grade_retrieval(
+    grade = await grade_retrieval(
         [security_chunk],
         "so is it mandatory?",
         retrieval_query="MFA mandatory production systems",

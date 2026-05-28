@@ -41,7 +41,7 @@ flowchart LR
 
 1. **route** — classify as `direct`, `single_hop_rag`, or `multi_hop`
 2. **retrieve** — dense + sparse retrieval, RRF merge, rerank
-3. **grade_context** — decide abstain if top evidence score is below threshold
+3. **grade_context** — abstain if no reranked chunk meets `GRADE_MIN_SCORE` (or cross-encoder threshold); optional Ollama JSON judge when scores are weak
 4. **generate** — compose answer from retrieved contexts (or abstain response)
 5. **validate_answer** — final grounding check before return
 
@@ -51,12 +51,14 @@ flowchart LR
 
 | Provider | Route | Generate | Grade / Validate | Notes |
 |----------|-------|----------|------------------|-------|
-| `heuristic` | heuristic rules | template response | lexical grounding checks | default local mode |
-| `openai` | Instructor + OpenAI | heuristic fallback today | heuristic fallback today | requires `OPENAI_API_KEY` |
-| `pydantic_ai` | Pydantic AI | heuristic fallback today | heuristic fallback today | requires `OPENAI_API_KEY` |
-| `ollama` | Ollama chat JSON | Ollama chat text | Ollama chat JSON | local provider via `OLLAMA_BASE_URL` + `OLLAMA_MODEL` |
+| `heuristic` | heuristic rules | template response | rerank score threshold; validate lexical | default local mode |
+| `openai` | Instructor + OpenAI | heuristic fallback today | rerank score; validate lexical | requires `OPENAI_API_KEY` |
+| `pydantic_ai` | Pydantic AI | heuristic fallback today | rerank score; validate lexical | requires `OPENAI_API_KEY` |
+| `ollama` | Ollama chat JSON | Ollama chat text | rerank score + Ollama judge fallback | `OLLAMA_BASE_URL` + `OLLAMA_MODEL` |
 
-If the active provider call fails or returns malformed output, the dispatcher falls back to the same heuristic behavior used in default mode.
+**Grading (`app/llm/grading.py`):** uses reranker scores from `app/retrieval/rerank.py` (lexical blend or cross-encoder). No stopword lists. Multi-turn search uses `app/llm/retrieval_query.py` (LLM query condensation). Generation/citations use `select_chunks_for_generation()` — top scored chunks only.
+
+If the active provider call fails or returns malformed output, the dispatcher falls back to score-based or heuristic behavior.
 
 ## API contract: snake_case internally, camelCase on the wire
 

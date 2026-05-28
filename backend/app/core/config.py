@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 20
     rerank_top_n: int = 5
     rerank_backend: str = "lexical"
+    # Lexical rerank / dense relevance scores are typically 0–1.
     grade_min_score: float = 0.25
+    # Cross-encoder logits (ms-marco); negative scores are often irrelevant.
+    grade_min_score_cross_encoder: float = 0.0
 
     @property
     def cors_origin_list(self) -> list[str]:

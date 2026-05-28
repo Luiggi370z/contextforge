@@ -13,7 +13,7 @@ class RouteDecision(BaseModel):
 
 class RetrievalGrade(BaseModel):
     relevant: bool
-    score: float = Field(ge=0, le=1)
+    score: float = Field(ge=0)
     should_abstain: bool
 
 

@@ -52,12 +52,24 @@ def build_grade_user_prompt(
     query: str,
     threshold: float,
     contexts: Sequence[str],
+    conversation: str | None = None,
 ) -> str:
-    return (
-        f"Query:\n{query}\n\n"
-        f"Abstain threshold score:\n{threshold}\n\n"
-        f"Retrieved chunks:\n{format_numbered_contexts(contexts)}"
+    parts: list[str] = []
+    if conversation:
+        parts.extend([f"Conversation so far:\n{conversation}", ""])
+    parts.extend(
+        [
+            f"Question to answer:\n{query}",
+            "",
+            f"Reference score threshold (reranker): {threshold}",
+            "",
+            f"Retrieved chunks:\n{format_numbered_contexts(contexts)}",
+            "",
+            "Return JSON with relevant, score, and should_abstain. "
+            "Set should_abstain true only if no chunk helps answer the question.",
+        ]
     )
+    return "\n".join(parts)
 
 
 def build_validate_user_prompt(*, answer: str, contexts: Sequence[str]) -> str:
