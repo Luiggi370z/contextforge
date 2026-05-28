@@ -46,4 +46,17 @@ async def get_thread(
         thread = await thread_service.get_thread_detail(session, thread_id)
     except ThreadNotFoundError as error:
         raise domain_error_to_app_exception(error) from error
-    return ThreadDetailResponse.model_validate(thread)
+    return ThreadDetailResponse.from_thread(thread)
+
+
+@router.delete("/{thread_id}", status_code=204)
+async def delete_thread(
+    thread_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    thread_service: ThreadService = Depends(get_thread_service),
+) -> None:
+    """Delete a conversation thread and its messages."""
+    try:
+        await thread_service.delete_thread(session, thread_id)
+    except ThreadNotFoundError as error:
+        raise domain_error_to_app_exception(error) from error

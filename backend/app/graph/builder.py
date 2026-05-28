@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any, Literal
+from uuid import UUID
 
 import structlog
 from langchain_core.runnables import RunnableConfig
@@ -36,17 +38,18 @@ async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
     db = cfg["db"]
     qdrant = cfg["qdrant"]
     query = state.get("query", "")
+    retrieval_query = state.get("retrieval_query") or query
     route = state.get("route", "single_hop_rag")
 
     # TODO(retrieval-backend): use hybrid_retrieve_configured(db, query, qdrant=qdrant)
-    chunks: list[RetrievedChunk] = await hybrid_retrieve(db, qdrant, query)
+    chunks: list[RetrievedChunk] = await hybrid_retrieve(db, qdrant, retrieval_query)
     if route == "multi_hop" and len(chunks) > 2:
-        extra = await hybrid_retrieve(db, qdrant, f"{query} details")
-        seen = {str(c.chunk_id) for c in chunks}
-        for c in extra:
-            if str(c.chunk_id) not in seen:
-                chunks.append(c)
-                seen.add(str(c.chunk_id))
+        extra = await hybrid_retrieve(db, qdrant, f"{retrieval_query} details")
+        seen = {str(chunk.chunk_id) for chunk in chunks}
+        for chunk in extra:
+            if str(chunk.chunk_id) not in seen:
+                chunks.append(chunk)
+                seen.add(str(chunk.chunk_id))
         chunks = chunks[: max(3, len(chunks) // 2 + 3)]
 
     out = await nodes.retrieve_node(state, chunks=chunks)
@@ -54,8 +57,33 @@ async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
     return out
 
 
+def _chunks_from_state(state: GraphState) -> list[RetrievedChunk]:
+    stored = list(state.get("_chunks") or [])
+    if stored:
+        return stored
+    rebuilt: list[RetrievedChunk] = []
+    for document in state.get("documents", []):
+        chunk_id = document.get("chunk_id")
+        document_id = document.get("document_id")
+        content = document.get("content")
+        if chunk_id is None or document_id is None or content is None:
+            continue
+        score = float(document.get("score", 0.0))
+        relevance = document.get("relevance_score")
+        rebuilt.append(
+            RetrievedChunk(
+                chunk_id=UUID(str(chunk_id)),
+                document_id=UUID(str(document_id)),
+                content=str(content),
+                score=score,
+                relevance_score=float(relevance) if relevance is not None else None,
+            )
+        )
+    return rebuilt
+
+
 async def _grade(state: GraphState, config: RunnableConfig) -> dict:
-    chunks: list[RetrievedChunk] = list(state.get("_chunks") or [])
+    chunks = _chunks_from_state(state)
     return await nodes.grade_node(state, chunks=chunks)
 
 
@@ -89,6 +117,42 @@ def build_agent_graph(checkpointer: Any | None = None) -> Any:
     return graph.compile(checkpointer=checkpointer)
 
 
+def _graph_run_config(
+    *,
+    db: Any,
+    qdrant: Any,
+    thread_id: str | None = None,
+) -> RunnableConfig:
+    configurable: dict[str, Any] = {"db": db, "qdrant": qdrant}
+    if thread_id is not None:
+        configurable["thread_id"] = thread_id
+    return {"configurable": configurable}
+
+
+def _initial_graph_state(
+    query: str,
+    *,
+    retrieval_query: str | None = None,
+    chat_history: list[dict[str, str]] | None = None,
+) -> GraphState:
+    return {
+        "query": query,
+        "retrieval_query": retrieval_query or query,
+        "chat_history": chat_history or [],
+        "nodes_visited": [],
+        "documents": [],
+        "citations": [],
+        "abstained": False,
+        "retrieval_scores": [],
+    }
+
+
+def _finalize_graph_state(state: GraphState) -> GraphState:
+    if isinstance(state, dict):
+        state.pop("_chunks", None)
+    return state
+
+
 async def invoke_agent_graph(
     query: str,
     *,
@@ -97,22 +161,47 @@ async def invoke_agent_graph(
     checkpointer: Any | None = None,
     compiled_graph: Any | None = None,
     thread_id: str | None = None,
+    retrieval_query: str | None = None,
+    chat_history: list[dict[str, str]] | None = None,
 ) -> GraphState:
     """Run the agent graph; ``thread_id`` enables Postgres checkpoint resume."""
     compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
-    initial: GraphState = {
-        "query": query,
-        "nodes_visited": [],
-        "documents": [],
-        "citations": [],
-        "abstained": False,
-        "retrieval_scores": [],
-    }
-    configurable: dict[str, Any] = {"db": db, "qdrant": qdrant}
-    if thread_id is not None:
-        configurable["thread_id"] = thread_id
-    config: RunnableConfig = {"configurable": configurable}
-    result = await compiled.ainvoke(initial, config=config)
-    if isinstance(result, dict):
-        result.pop("_chunks", None)
-    return result  # type: ignore[return-value]
+    config = _graph_run_config(db=db, qdrant=qdrant, thread_id=thread_id)
+    result = await compiled.ainvoke(
+        _initial_graph_state(
+            query,
+            retrieval_query=retrieval_query,
+            chat_history=chat_history,
+        ),
+        config=config,
+    )
+    return _finalize_graph_state(result)  # type: ignore[return-value]
+
+
+async def stream_invoke_agent_graph(
+    query: str,
+    *,
+    db: Any,
+    qdrant: Any,
+    checkpointer: Any | None = None,
+    compiled_graph: Any | None = None,
+    thread_id: str | None = None,
+    retrieval_query: str | None = None,
+    chat_history: list[dict[str, str]] | None = None,
+) -> AsyncIterator[str | GraphState]:
+    """Yield each completed node name, then the final graph state."""
+    compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
+    config = _graph_run_config(db=db, qdrant=qdrant, thread_id=thread_id)
+    state: GraphState = _initial_graph_state(
+        query,
+        retrieval_query=retrieval_query,
+        chat_history=chat_history,
+    )
+    async for update in compiled.astream(state, config=config, stream_mode="updates"):
+        if not isinstance(update, dict):
+            continue
+        for node_name, node_update in update.items():
+            if isinstance(node_update, dict):
+                state = {**state, **node_update}
+            yield node_name
+    yield _finalize_graph_state(state)

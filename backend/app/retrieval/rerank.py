@@ -50,7 +50,7 @@ def lexical_rerank(
     """
     query_tokens = set(query.lower().split())
 
-    def score(chunk: RetrievedChunk) -> float:
+    def rank_score(chunk: RetrievedChunk) -> float:
         chunk_tokens = set(chunk.content.lower().split())
         overlap = len(query_tokens & chunk_tokens) / (
             len(query_tokens) + LEXICAL_OVERLAP_EPSILON
@@ -60,7 +60,17 @@ def lexical_rerank(
             + overlap * RERANK_LEXICAL_OVERLAP_WEIGHT
         )
 
-    return sorted(candidates, key=score, reverse=True)[:top_n]
+    ranked = sorted(candidates, key=rank_score, reverse=True)[:top_n]
+    return [
+        RetrievedChunk(
+            chunk_id=chunk.chunk_id,
+            document_id=chunk.document_id,
+            content=chunk.content,
+            score=rank_score(chunk),
+            relevance_score=chunk.relevance_score,
+        )
+        for chunk in ranked
+    ]
 
 
 def cross_encoder_rerank(
@@ -88,6 +98,7 @@ def cross_encoder_rerank(
             document_id=chunk.document_id,
             content=chunk.content,
             score=float(score),
+            relevance_score=float(score),
         )
         for chunk, score in ranked[:top_n]
     ]

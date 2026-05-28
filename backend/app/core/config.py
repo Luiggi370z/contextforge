@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
 
     database_url: str = (
-        "postgresql+asyncpg://contextforge:contextforge@localhost:5433/contextforge"
+        "postgresql+asyncpg://contextforge:contextforge@localhost:5434/contextforge"
     )
     # TODO(retrieval-backend): Branch ingest/retrieve on this when Postgres profile ships.
     # Values: qdrant (default) | postgres (pgvector dense + tsvector FTS).

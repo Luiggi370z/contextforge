@@ -7,3 +7,29 @@ body {
   background: #0f1419;
   color: #e7ecf3;
 }
+
+@keyframes thinking-shimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: -100% center;
+  }
+}
+
+.thinking-shimmer {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    #64748b 0%,
+    #94a3b8 35%,
+    #e2e8f0 50%,
+    #94a3b8 65%,
+    #64748b 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-shimmer 1.8s linear infinite;
+}

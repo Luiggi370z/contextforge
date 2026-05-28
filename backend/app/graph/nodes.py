@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import structlog
 
+from app.core.config import get_settings
 from app.core.constants import (
     ABSTAIN_MESSAGE,
     CITATION_SNIPPET_MAX_CHARS,
@@ -10,6 +11,7 @@ from app.core.constants import (
     GRAPH_NODE_RETRIEVE,
     GRAPH_NODE_ROUTE,
     GRAPH_NODE_VALIDATE,
+    ROUTE_DIRECT,
     ROUTE_SINGLE_HOP_RAG,
 )
 from app.graph.state import GraphState
@@ -17,8 +19,10 @@ from app.llm.structured import (
     decide_route,
     generate_from_context,
     grade_retrieval,
+    select_contexts_for_generation,
     validate_answer,
 )
+from app.retrieval.dedupe import dedupe_citations
 from app.retrieval.models import RetrievedChunk
 
 log = structlog.get_logger(__name__)
@@ -45,16 +49,17 @@ async def retrieve_node(
     visited.append(GRAPH_NODE_RETRIEVE)
     documents = [
         {
-            "chunk_id": str(c.chunk_id),
-            "document_id": str(c.document_id),
-            "content": c.content,
-            "score": c.score,
+            "chunk_id": str(chunk.chunk_id),
+            "document_id": str(chunk.document_id),
+            "content": chunk.content,
+            "score": chunk.score,
+            "relevance_score": chunk.relevance_score,
         }
-        for c in chunks
+        for chunk in chunks
     ]
     return {
         "documents": documents,
-        "retrieval_scores": [c.score for c in chunks],
+        "retrieval_scores": [chunk.grading_score() for chunk in chunks],
         "nodes_visited": visited,
     }
 
@@ -62,7 +67,11 @@ async def retrieve_node(
 async def grade_node(state: GraphState, *, chunks: list[RetrievedChunk]) -> dict:
     visited = list(state.get("nodes_visited", []))
     visited.append(GRAPH_NODE_GRADE)
-    grade = grade_retrieval(chunks, state.get("query", ""))
+    grade = grade_retrieval(
+        chunks,
+        state.get("query", ""),
+        retrieval_query=state.get("retrieval_query"),
+    )
     return {
         "abstained": grade.should_abstain,
         "nodes_visited": visited,
@@ -74,33 +83,60 @@ async def generate_node(state: GraphState) -> dict:
     visited.append(GRAPH_NODE_GENERATE)
     route = state.get("route", ROUTE_SINGLE_HOP_RAG)
     docs = state.get("documents", [])
-    contexts = [d["content"] for d in docs]
+    query = state.get("query", "")
+    retrieval_query = state.get("retrieval_query")
+    all_contexts = [str(document["content"]) for document in docs]
+    contexts = select_contexts_for_generation(
+        query,
+        all_contexts,
+        retrieval_query=retrieval_query,
+    )
+    chat_history = state.get("chat_history") or []
     if state.get("abstained"):
         answer = ABSTAIN_MESSAGE
     else:
-        answer = generate_from_context(state.get("query", ""), contexts, route)  # type: ignore[arg-type]
-    citations = [
-        {
-            "chunk_id": d.get("chunk_id"),
-            "document_id": d.get("document_id"),
-            "snippet": d.get("content", "")[:CITATION_SNIPPET_MAX_CHARS],
-            "score": d.get("score"),
-        }
-        for d in docs
-    ]
+        answer = generate_from_context(
+            query,
+            contexts,
+            route,  # type: ignore[arg-type]
+            chat_history=chat_history,
+        )
+    citations: list[dict] = []
+    if not state.get("abstained"):
+        citations = dedupe_citations(
+            [
+                {
+                    "chunk_id": document.get("chunk_id"),
+                    "document_id": document.get("document_id"),
+                    "snippet": document.get("content", "")[:CITATION_SNIPPET_MAX_CHARS],
+                    "score": document.get("relevance_score")
+                    if document.get("relevance_score") is not None
+                    else document.get("score"),
+                }
+                for document in docs
+                if str(document.get("content", "")) in contexts
+            ]
+        )
     return {"answer": answer, "citations": citations, "nodes_visited": visited}
 
 
 async def validate_node(state: GraphState) -> dict:
     visited = list(state.get("nodes_visited", []))
     visited.append(GRAPH_NODE_VALIDATE)
+    if state.get("route") == ROUTE_DIRECT:
+        return {"nodes_visited": visited}
     docs = state.get("documents", [])
-    contexts = [d["content"] for d in docs]
+    contexts = [document["content"] for document in docs]
     validation = validate_answer(state.get("answer", ""), contexts)
     if not validation.grounded and not state.get("abstained"):
+        settings = get_settings()
+        if settings.llm_provider == "ollama":
+            log.warning("validate_not_grounded_ollama", issues=validation.issues)
+            return {"nodes_visited": visited}
         return {
             "answer": ABSTAIN_MESSAGE,
             "abstained": True,
+            "citations": [],
             "nodes_visited": visited,
         }
     return {"nodes_visited": visited}

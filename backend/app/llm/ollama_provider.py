@@ -7,13 +7,16 @@ import json
 import httpx
 
 from app.llm.models import AnswerValidation, RetrievalGrade, RouteDecision, RouteKind
+from app.graph.conversation import ChatTurn, format_chat_history
 from app.llm.prompts.ollama import (
     SYSTEM_PROMPT_GENERATE,
     SYSTEM_PROMPT_GRADE,
+    SYSTEM_PROMPT_RETRIEVAL_QUERY,
     SYSTEM_PROMPT_ROUTE,
     SYSTEM_PROMPT_VALIDATE,
     build_generate_user_prompt,
     build_grade_user_prompt,
+    build_retrieval_query_user_prompt,
     build_route_user_prompt,
     build_validate_user_prompt,
 )
@@ -148,6 +151,27 @@ def validate_answer(
     return AnswerValidation.model_validate(_parse_json_content(content))
 
 
+async def condense_retrieval_query(
+    *,
+    conversation: str,
+    latest_message: str,
+    base_url: str,
+    model: str,
+) -> str:
+    """Rewrite multi-turn chat into one search query for hybrid retrieval."""
+    user_prompt = build_retrieval_query_user_prompt(
+        conversation=conversation,
+        latest_message=latest_message,
+    )
+    return await _chat_async(
+        base_url=base_url,
+        model=model,
+        system_prompt=SYSTEM_PROMPT_RETRIEVAL_QUERY,
+        user_prompt=user_prompt,
+        as_json=False,
+    )
+
+
 def generate_from_context(
     *,
     query: str,
@@ -155,8 +179,21 @@ def generate_from_context(
     route: RouteKind,
     base_url: str,
     model: str,
+    chat_history: list[dict[str, str]] | None = None,
 ) -> str:
-    user_prompt = build_generate_user_prompt(route=route, query=query, contexts=contexts)
+    conversation: str | None = None
+    if chat_history and len(chat_history) > 1:
+        prior = [
+            ChatTurn(role=turn["role"], content=turn["content"])
+            for turn in chat_history[:-1]
+        ]
+        conversation = format_chat_history(prior)
+    user_prompt = build_generate_user_prompt(
+        route=route,
+        query=query,
+        contexts=contexts,
+        conversation=conversation,
+    )
     return _chat_sync(
         base_url=base_url,
         model=model,

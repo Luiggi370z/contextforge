@@ -33,6 +33,8 @@ export interface ThreadMessage {
   role: string;
   content: string;
   createdAt: string;
+  metadata?: QueryMetadata;
+  citations?: Citation[];
 }
 
 export interface ThreadDetail extends Thread {

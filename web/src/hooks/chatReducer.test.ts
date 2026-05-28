@@ -14,6 +14,27 @@ describe("chatReducer", () => {
     expect(next.messages[1]?.content).toBe("");
   });
 
+  it("thread_deleted clears active conversation when removed", () => {
+    const withThread = chatReducer(
+      {
+        ...initialChatState,
+        threadId: "thread-1",
+        messages: [{ role: "user", content: "hi" }],
+        threads: [
+          {
+            id: "thread-1",
+            title: "Test",
+            createdAt: "2026-05-28T00:00:00.000Z",
+          },
+        ],
+      },
+      { type: "thread_deleted", threadId: "thread-1" },
+    );
+    expect(withThread.threadId).toBeNull();
+    expect(withThread.messages).toEqual([]);
+    expect(withThread.threads).toEqual([]);
+  });
+
   it("stream_token updates the last assistant message", () => {
     const started = chatReducer(initialChatState, {
       type: "send_start",

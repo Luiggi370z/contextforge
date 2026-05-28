@@ -11,6 +11,15 @@ from app.core.constants import SSE_EVENT_DONE, SSE_EVENT_STATUS, SSE_EVENT_TOKEN
 from app.main import app
 
 
+def _parse_sse_data_frames(frames: list[str]) -> list[dict]:
+    events: list[dict] = []
+    for frame in frames:
+        if not frame.startswith("data: "):
+            continue
+        events.append(json.loads(frame.removeprefix("data: ").strip()))
+    return events
+
+
 def test_format_sse_event():
     frame = format_sse_event("token", {"content": "hello"})
     assert frame.startswith("data: ")
@@ -34,11 +43,12 @@ async def test_stream_query_events_order():
         metadata=QueryMetadata(route="single_hop_rag", nodes_visited=["route", "retrieve"]),
     )
     frames = [frame async for frame in stream_query_events(result)]
-    types = [json.loads(frame.removeprefix("data: ").strip())["type"] for frame in frames]
+    events = _parse_sse_data_frames(frames)
+    types = [event["type"] for event in events]
     assert types[0] == SSE_EVENT_STATUS
     assert SSE_EVENT_TOKEN in types
     assert types[-1] == SSE_EVENT_DONE
-    done_payload = json.loads(frames[-1].removeprefix("data: ").strip())
+    done_payload = events[-1]
     assert done_payload["result"]["citations"][0]["snippet"] == "src"
 
 
@@ -50,8 +60,11 @@ async def test_query_stream_returns_multiple_sse_events():
         thread_id=thread_id,
         metadata=QueryMetadata(route="direct", nodes_visited=["route"]),
     )
-    with patch("app.api.v1.query.service.run_query", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value = mock_response
+    async def fake_stream_graph(*_args, **_kwargs):
+        yield "route"
+        yield mock_response
+
+    with patch("app.api.v1.query.service.stream_query_graph", fake_stream_graph):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             res = await client.post("/v1/query/stream", json={"message": "hello"})
 

@@ -54,6 +54,17 @@ CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RETRIEVAL_BACKEND_QDRANT = "qdrant"
 RETRIEVAL_BACKEND_POSTGRES = "postgres"
 
+# Retrieval grading
+GRADE_MIN_QUERY_TERM_OVERLAP = 0.15
+
+# Generation context + citations (tighter than grading; avoids tangential policy matches)
+CONTEXT_SELECTION_MIN_OVERLAP = 0.2
+MAX_GENERATION_CONTEXTS = 3
+
+# Multi-turn chat
+CONVERSATION_HISTORY_LIMIT = 10
+CONVERSATION_RETRIEVAL_QUERY_MAX_CHARS = 512
+
 # RRF default
 RRF_RANK_CONSTANT = 60
 
@@ -68,4 +79,6 @@ SSE_EVENT_STATUS = "status"
 SSE_EVENT_DONE = "done"
 SSE_EVENT_ERROR = "error"
 SSE_STAGE_STARTED = "started"
-SSE_STREAM_WORD_CHUNK_SIZE = 12
+SSE_STREAM_WORD_CHUNK_SIZE = 1
+SSE_STREAM_CHUNK_DELAY_SECONDS = 0.04
+SSE_FLUSH_COMMENT = ": flush\n\n"

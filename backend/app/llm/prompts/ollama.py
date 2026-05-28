@@ -18,10 +18,20 @@ SYSTEM_PROMPT_VALIDATE = (
     "Check whether the answer is grounded in the provided contexts. "
     "Return JSON only with fields grounded and issues."
 )
+SYSTEM_PROMPT_RETRIEVAL_QUERY = (
+    "Rewrite the conversation into one standalone search query for retrieving policy documents. "
+    "The query must answer what the user wants to know from their latest message. "
+    "If the latest message is a follow-up, carry forward the subject being discussed. "
+    "If the latest message changes topic, use only the new subject—do not keep keywords from the old topic. "
+    "Reply with the search query text only—no quotes, labels, or explanation."
+)
 SYSTEM_PROMPT_GENERATE = (
-    "Answer using only the provided context snippets. "
-    "If context is insufficient, respond exactly: "
-    "'I do not have enough grounded context to answer that yet.'"
+    "Answer the user's question using only the provided context snippets. "
+    "Be direct and concise. Quote or paraphrase the policy when it answers the question. "
+    "If the policy applies only to a specific scope (for example production systems), "
+    "state that scope clearly instead of claiming the documents are silent. "
+    "Do not contradict a snippet that already answers part of the question. "
+    "Only say context is insufficient when no snippet is relevant."
 )
 
 
@@ -31,6 +41,10 @@ def format_numbered_contexts(contexts: Sequence[str]) -> str:
 
 def build_route_user_prompt(message: str) -> str:
     return message
+
+
+def build_retrieval_query_user_prompt(*, conversation: str, latest_message: str) -> str:
+    return f"Conversation:\n{conversation}\n\nLatest user message:\n{latest_message}"
 
 
 def build_grade_user_prompt(
@@ -55,9 +69,17 @@ def build_generate_user_prompt(
     route: RouteKind,
     query: str,
     contexts: Sequence[str],
+    conversation: str | None = None,
 ) -> str:
-    return (
-        f"Route: {route}\n\n"
-        f"Query:\n{query}\n\n"
-        f"Contexts:\n{format_numbered_contexts(contexts)}"
+    parts: list[str] = [f"Route: {route}"]
+    if conversation:
+        parts.extend(["", f"Conversation so far:\n{conversation}"])
+    parts.extend(
+        [
+            "",
+            f"Current question:\n{query}",
+            "",
+            f"Contexts:\n{format_numbered_contexts(contexts)}",
+        ]
     )
+    return "\n".join(parts)

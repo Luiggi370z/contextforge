@@ -1,6 +1,8 @@
 import type { QueryResponse } from "../types";
 
-export type StreamStatusHandler = (stage: string) => void;
+export type StreamStatusHandler = (stage: string) => void | Promise<void>;
+
+export type StreamTokenHandler = (chunk: string) => void | Promise<void>;
 
 interface StreamPayload {
   type: string;
@@ -14,7 +16,7 @@ interface StreamPayload {
 export async function streamQuery(
   message: string,
   threadId: string | null,
-  onToken: (chunk: string) => void,
+  onToken: StreamTokenHandler,
   onStatus?: StreamStatusHandler,
 ): Promise<QueryResponse> {
   const res = await fetch("/v1/query/stream", {
@@ -41,10 +43,10 @@ export async function streamQuery(
         if (!line.startsWith("data: ")) continue;
         const payload = JSON.parse(line.slice(6)) as StreamPayload;
         if (payload.type === "status" && payload.stage) {
-          onStatus?.(payload.stage);
+          await onStatus?.(payload.stage);
         }
         if (payload.type === "token" && payload.content) {
-          onToken(payload.content);
+          await onToken(payload.content);
         }
         if (payload.type === "done" && payload.result) {
           finalResult = payload.result;

@@ -25,6 +25,7 @@ dependencies = [
     "pydantic-ai>=0.2",
     "instructor>=1.0",
     "openai>=1.0",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]

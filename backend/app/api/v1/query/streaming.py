@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
@@ -11,7 +12,9 @@ from app.core.constants import (
     SSE_EVENT_ERROR,
     SSE_EVENT_STATUS,
     SSE_EVENT_TOKEN,
+    SSE_FLUSH_COMMENT,
     SSE_STAGE_STARTED,
+    SSE_STREAM_CHUNK_DELAY_SECONDS,
     SSE_STREAM_WORD_CHUNK_SIZE,
 )
 from app.schemas.errors import ErrorResponse
@@ -42,20 +45,39 @@ def chunk_answer_text(answer: str, words_per_chunk: int = SSE_STREAM_WORD_CHUNK_
     return chunks
 
 
-async def stream_query_events(result: QueryResponse) -> AsyncIterator[str]:
-    """Yield SSE frames for graph status, answer tokens, and final payload."""
-    yield format_sse_event(SSE_EVENT_STATUS, {"stage": SSE_STAGE_STARTED})
+async def _yield_sse_frame(event_type: str, payload: dict[str, object]) -> AsyncIterator[str]:
+    yield format_sse_event(event_type, payload)
+    yield SSE_FLUSH_COMMENT
+    await asyncio.sleep(0)
+    if event_type == SSE_EVENT_TOKEN and SSE_STREAM_CHUNK_DELAY_SECONDS > 0:
+        await asyncio.sleep(SSE_STREAM_CHUNK_DELAY_SECONDS)
 
-    for node_name in result.metadata.nodes_visited:
-        yield format_sse_event(SSE_EVENT_STATUS, {"stage": node_name})
+
+async def stream_query_events(
+    result: QueryResponse,
+    *,
+    graph_stages: list[str] | None = None,
+    emit_started: bool = True,
+) -> AsyncIterator[str]:
+    """Yield SSE frames for graph status, answer tokens, and final payload."""
+    if emit_started:
+        async for frame in _yield_sse_frame(SSE_EVENT_STATUS, {"stage": SSE_STAGE_STARTED}):
+            yield frame
+
+    stages = graph_stages if graph_stages is not None else result.metadata.nodes_visited
+    for node_name in stages:
+        async for frame in _yield_sse_frame(SSE_EVENT_STATUS, {"stage": node_name}):
+            yield frame
 
     for text_chunk in chunk_answer_text(result.answer):
-        yield format_sse_event(SSE_EVENT_TOKEN, {"content": text_chunk})
+        async for frame in _yield_sse_frame(SSE_EVENT_TOKEN, {"content": text_chunk}):
+            yield frame
 
-    yield format_sse_event(
+    async for frame in _yield_sse_frame(
         SSE_EVENT_DONE,
         {"result": result.model_dump(mode="json", by_alias=True)},
-    )
+    ):
+        yield frame
 
 
 async def stream_error_event(detail: str, correlation_id: str | None = None) -> AsyncIterator[str]:

@@ -30,6 +30,7 @@ export type ChatAction =
   | { type: "thread_load_start"; threadId: string }
   | { type: "thread_loaded"; messages: ChatMessage[] }
   | { type: "thread_load_end" }
+  | { type: "thread_deleted"; threadId: string }
   | { type: "send_start"; userMessage: string }
   | { type: "stream_stage"; stage: string }
   | { type: "stream_token"; assistantContent: string }
@@ -77,6 +78,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, messages: action.messages };
     case "thread_load_end":
       return { ...state, threadLoading: false };
+    case "thread_deleted": {
+      const wasActive = state.threadId === action.threadId;
+      return {
+        ...state,
+        threads: state.threads.filter((thread) => thread.id !== action.threadId),
+        threadId: wasActive ? null : state.threadId,
+        messages: wasActive ? [] : state.messages,
+        threadLoading: false,
+      };
+    }
     case "send_start":
       return {
         ...state,

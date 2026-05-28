@@ -7,13 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.constants import RRF_RANK_CONSTANT
 from app.db.models import Chunk
+from app.retrieval.dedupe import dedupe_chunks_by_content
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.qdrant_store import QdrantStore, VectorRecord
 from app.retrieval.rerank import rerank_candidates
 
 
 def reciprocal_rank_fusion(
-    rank_lists: list[list[str]], k: int = RRF_RANK_CONSTANT
+    rank_lists: list[list[str]],
+    rank_constant: int = RRF_RANK_CONSTANT,
 ) -> list[tuple[str, float]]:
     """Merge ranked id lists with Reciprocal Rank Fusion.
 
@@ -24,7 +26,7 @@ def reciprocal_rank_fusion(
     scores: dict[str, float] = {}
     for ranked in rank_lists:
         for rank, doc_id in enumerate(ranked):
-            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (rank_constant + rank + 1)
     return sorted(scores.items(), key=lambda item: item[1], reverse=True)
 
 
@@ -44,12 +46,31 @@ def merge_retrieval_hits(
         document_id = hit.document_id
         score = hit.score
         existing = by_id.get(key)
-        if existing is None or score > existing.score:
+        if existing is None:
             by_id[key] = RetrievedChunk(
                 chunk_id=hit.chunk_id,
                 document_id=document_id,
                 content=content,
                 score=score,
+                relevance_score=score,
+            )
+            continue
+        relevance = max(existing.relevance_score or existing.score, score)
+        if score > existing.score:
+            by_id[key] = RetrievedChunk(
+                chunk_id=hit.chunk_id,
+                document_id=document_id,
+                content=content,
+                score=score,
+                relevance_score=relevance,
+            )
+        else:
+            by_id[key] = RetrievedChunk(
+                chunk_id=existing.chunk_id,
+                document_id=existing.document_id,
+                content=existing.content,
+                score=existing.score,
+                relevance_score=relevance,
             )
 
     candidates: list[RetrievedChunk] = []
@@ -62,6 +83,7 @@ def merge_retrieval_hits(
                     document_id=chunk.document_id,
                     content=chunk.content,
                     score=rrf_score,
+                    relevance_score=chunk.relevance_score,
                 )
             )
     return candidates
@@ -114,4 +136,5 @@ async def hybrid_retrieve(
     dense_hits = await qdrant.dense_search(query, limit=settings.retrieval_top_k)
     sparse_hits = await bm25_search(session, query, limit=settings.retrieval_top_k)
     candidates = merge_retrieval_hits(dense_hits, sparse_hits)
-    return rerank_candidates(query, candidates, top_n=settings.rerank_top_n)
+    ranked = rerank_candidates(query, candidates, top_n=settings.rerank_top_n)
+    return dedupe_chunks_by_content(ranked)

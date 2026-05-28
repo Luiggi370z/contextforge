@@ -20,6 +20,8 @@ async def run_agent_pipeline(
     checkpointer: object | None = None,
     compiled_graph: object | None = None,
     thread_id: str | None = None,
+    retrieval_query: str | None = None,
+    chat_history: list[dict[str, str]] | None = None,
 ) -> GraphState:
     state = await invoke_agent_graph(
         query,
@@ -28,6 +30,8 @@ async def run_agent_pipeline(
         checkpointer=checkpointer,
         compiled_graph=compiled_graph,
         thread_id=thread_id,
+        retrieval_query=retrieval_query,
+        chat_history=chat_history,
     )
     log.info(
         "pipeline_complete",

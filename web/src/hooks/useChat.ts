@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
+import { flushSync } from "react-dom";
 import type { ThreadDetail } from "../types";
 import { chatReducer, initialChatState } from "./chatReducer";
 import { streamQuery } from "./useSSE";
@@ -10,6 +11,7 @@ import { streamQuery } from "./useSSE";
 export function useChat() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
   const [showDebug, setShowDebug] = useState(true);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
   const loadThreads = useCallback(async () => {
     const response = await fetch("/v1/threads");
@@ -29,6 +31,8 @@ export function useChat() {
         messages: detail.messages.map((message) => ({
           role: message.role === "assistant" ? "assistant" : "user",
           content: message.content,
+          metadata: message.metadata,
+          citations: message.citations,
         })),
       });
     } finally {
@@ -38,6 +42,21 @@ export function useChat() {
 
   const startNewThread = useCallback(() => {
     dispatch({ type: "new_thread" });
+  }, []);
+
+  const deleteThread = useCallback(async (threadId: string) => {
+    setDeletingThreadId(threadId);
+    try {
+      const response = await fetch(`/v1/threads/${threadId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        return;
+      }
+      dispatch({ type: "thread_deleted", threadId });
+    } finally {
+      setDeletingThreadId(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -56,11 +75,20 @@ export function useChat() {
         const result = await streamQuery(
           trimmed,
           state.threadId,
-          (token) => {
+          async (token) => {
             assistant += token;
-            dispatch({ type: "stream_token", assistantContent: assistant });
+            flushSync(() => {
+              dispatch({ type: "stream_token", assistantContent: assistant });
+            });
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => resolve());
+            });
           },
-          (stage) => dispatch({ type: "stream_stage", stage }),
+          async (stage) => {
+            flushSync(() => {
+              dispatch({ type: "stream_stage", stage });
+            });
+          },
         );
         dispatch({
           type: "send_success",
@@ -116,9 +144,11 @@ export function useChat() {
     uploadStatus: state.uploadStatus,
     streamStage: state.streamStage,
     threadLoading: state.threadLoading,
+    deletingThreadId,
     loadThreads,
     loadThread,
     startNewThread,
+    deleteThread,
     sendMessage,
     uploadDocument,
   };

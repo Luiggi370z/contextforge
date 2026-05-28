@@ -33,3 +33,9 @@ class ThreadService:
         if thread is None:
             raise ThreadNotFoundError(str(thread_id))
         return thread
+
+    async def delete_thread(self, session: AsyncSession, thread_id: uuid.UUID) -> None:
+        """Delete a thread or raise ``ThreadNotFoundError``."""
+        deleted = await self._repository.delete(session, thread_id)
+        if not deleted:
+            raise ThreadNotFoundError(str(thread_id))

@@ -6,6 +6,8 @@ from langgraph.graph.message import add_messages
 class GraphState(TypedDict, total=False):
     messages: Annotated[list[Any], add_messages]
     query: str
+    retrieval_query: str
+    chat_history: list[dict[str, str]]
     route: str
     documents: list[dict]
     citations: list[dict]
@@ -13,3 +15,5 @@ class GraphState(TypedDict, total=False):
     nodes_visited: list[str]
     answer: str
     retrieval_scores: list[float]
+    # Internal: retrieved chunks passed retrieve → grade (not exposed on API).
+    _chunks: list[Any]

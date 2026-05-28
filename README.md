@@ -108,7 +108,7 @@ just web-test      # web: vitest
 | API | FastAPI, Pydantic v2, structlog, SSE |
 | Agent | LangGraph `StateGraph` |
 | Retrieval | Qdrant dense + BM25 + RRF + rerank |
-| DB | PostgreSQL 16 (host port `5433`) |
+| DB | PostgreSQL 16 (host port `5434`) |
 | UI | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
 | Eval | RAGAS + heuristic metrics (`eval/`) |
 | Tasks | just |

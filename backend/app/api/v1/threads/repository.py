@@ -38,3 +38,12 @@ class ThreadRepository:
             select(Thread).where(Thread.id == thread_id).options(selectinload(Thread.messages))
         )
         return result.scalar_one_or_none()
+
+    async def delete(self, session: AsyncSession, thread_id: uuid.UUID) -> bool:
+        """Delete a thread and its messages. Returns False if the thread does not exist."""
+        thread = await session.get(Thread, thread_id)
+        if thread is None:
+            return False
+        await session.delete(thread)
+        await session.commit()
+        return True

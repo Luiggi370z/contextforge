@@ -48,7 +48,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
     settings = get_settings()
     if settings.embedding_backend == "hash":
-        return [_hash_embed(t) for t in texts]
+        return [_hash_embed(text) for text in texts]
     model = _sentence_model()
     vectors = model.encode(texts, normalize_embeddings=True)
-    return [v.tolist() for v in vectors]
+    return [vector.tolist() for vector in vectors]
