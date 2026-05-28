@@ -45,6 +45,19 @@ flowchart LR
 4. **generate** — compose answer from retrieved contexts (or abstain response)
 5. **validate_answer** — final grounding check before return
 
+## LLM provider routing
+
+`LLM_PROVIDER` is selected from environment config and applies to all LLM-like node logic (`route`, `generate`, `grade_context`, `validate_answer`).
+
+| Provider | Route | Generate | Grade / Validate | Notes |
+|----------|-------|----------|------------------|-------|
+| `heuristic` | heuristic rules | template response | lexical grounding checks | default local mode |
+| `openai` | Instructor + OpenAI | heuristic fallback today | heuristic fallback today | requires `OPENAI_API_KEY` |
+| `pydantic_ai` | Pydantic AI | heuristic fallback today | heuristic fallback today | requires `OPENAI_API_KEY` |
+| `ollama` | Ollama chat JSON | Ollama chat text | Ollama chat JSON | local provider via `OLLAMA_BASE_URL` + `OLLAMA_MODEL` |
+
+If the active provider call fails or returns malformed output, the dispatcher falls back to the same heuristic behavior used in default mode.
+
 ## API contract: snake_case internally, camelCase on the wire
 
 - Python model fields are `snake_case`

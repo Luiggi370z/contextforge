@@ -1,6 +1,9 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LLMProvider = Literal["heuristic", "openai", "pydantic_ai", "ollama"]
 
 
 class Settings(BaseSettings):
@@ -20,7 +23,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "contextforge"
 
-    llm_provider: str = "heuristic"
+    llm_provider: LLMProvider = "heuristic"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
     openai_api_key: str | None = None

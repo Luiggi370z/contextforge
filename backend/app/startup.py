@@ -24,6 +24,11 @@ async def application_lifespan(application: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
     log.info("application_starting", app_env=settings.app_env)
+    log_kwargs = {"llm_provider": settings.llm_provider}
+    if settings.llm_provider == "ollama":
+        log_kwargs["ollama_base_url"] = settings.ollama_base_url
+        log_kwargs["ollama_model"] = settings.ollama_model
+    log.info("llm_provider_configured", **log_kwargs)
 
     async with postgres_checkpointer() as checkpointer:
         application.state.checkpointer = checkpointer

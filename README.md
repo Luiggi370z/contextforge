@@ -3,6 +3,7 @@
 ContextForge is an agentic RAG portfolio project: FastAPI + LangGraph orchestration, hybrid retrieval (Qdrant dense + BM25 + RRF), and a React chat UI with debug visibility.
 
 - Plan: [docs/PLAN.md](docs/PLAN.md)
+- Ollama integration (planned): [docs/OLLAMA_INTEGRATION.md](docs/OLLAMA_INTEGRATION.md)
 - Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Coding standards: [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
 
@@ -28,6 +29,27 @@ just api-dev                 # terminal 1: http://localhost:8000/docs
 just web-install && just web-dev  # terminal 2: http://localhost:5173
 just seed                    # terminal 3, optional: load sample docs
 ```
+
+## Run with Ollama
+
+Provider selection is environment-only for now (no per-request or UI toggle).
+
+1. Start Ollama and pull a model:
+   ```bash
+   ollama serve
+   ollama pull llama3.2
+   ```
+2. In `.env`, set:
+   ```env
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_MODEL=llama3.2
+   ```
+3. Start the API + web app as usual:
+   ```bash
+   just api-dev
+   just web-dev
+   ```
 
 ## Demo (2 minutes)
 

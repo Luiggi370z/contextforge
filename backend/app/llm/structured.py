@@ -15,6 +15,18 @@ from app.core.constants import (
     ROUTE_SINGLE_HOP_RAG,
 )
 from app.llm.models import AnswerValidation, RetrievalGrade, RouteDecision, RouteKind
+from app.llm.ollama_provider import (
+    decide_route as ollama_decide_route,
+)
+from app.llm.ollama_provider import (
+    generate_from_context as ollama_generate_from_context,
+)
+from app.llm.ollama_provider import (
+    grade_retrieval as ollama_grade_retrieval,
+)
+from app.llm.ollama_provider import (
+    validate_answer as ollama_validate_answer,
+)
 from app.retrieval.models import RetrievedChunk
 
 log = structlog.get_logger(__name__)
@@ -47,12 +59,26 @@ async def _decide_route_pydantic_ai(message: str) -> RouteDecision:
     return await decide_route(message)
 
 
+async def _decide_route_ollama(message: str) -> RouteDecision:
+    settings = get_settings()
+    return await ollama_decide_route(
+        message,
+        base_url=settings.ollama_base_url,
+        model=settings.ollama_model,
+    )
+
+
 async def decide_route(message: str) -> RouteDecision:
     settings = get_settings()
-    if settings.llm_provider == "heuristic" or not settings.openai_api_key:
+    if settings.llm_provider == "heuristic":
+        return _heuristic_route(message)
+    if settings.llm_provider in ("openai", "pydantic_ai") and not settings.openai_api_key:
+        log.warning("route_llm_missing_openai_key", provider=settings.llm_provider)
         return _heuristic_route(message)
 
     try:
+        if settings.llm_provider == "ollama":
+            return await _decide_route_ollama(message)
         if settings.llm_provider == "pydantic_ai":
             return await _decide_route_pydantic_ai(message)
         return await _decide_route_instructor(message)
@@ -62,6 +88,23 @@ async def decide_route(message: str) -> RouteDecision:
 
 
 def grade_retrieval(chunks: list[RetrievedChunk], query: str) -> RetrievalGrade:
+    settings = get_settings()
+    if settings.llm_provider == "ollama":
+        try:
+            return ollama_grade_retrieval(
+                query=query,
+                chunks=chunks,
+                threshold=settings.grade_min_score,
+                base_url=settings.ollama_base_url,
+                model=settings.ollama_model,
+            )
+        except Exception as exc:
+            log.warning("grade_llm_fallback", error=str(exc))
+            return _heuristic_grade_retrieval(chunks, query)
+    return _heuristic_grade_retrieval(chunks, query)
+
+
+def _heuristic_grade_retrieval(chunks: list[RetrievedChunk], query: str) -> RetrievalGrade:
     settings = get_settings()
     if not chunks:
         return RetrievalGrade(relevant=False, score=0.0, should_abstain=True)
@@ -75,6 +118,22 @@ def grade_retrieval(chunks: list[RetrievedChunk], query: str) -> RetrievalGrade:
 
 
 def validate_answer(answer: str, contexts: list[str]) -> AnswerValidation:
+    settings = get_settings()
+    if settings.llm_provider == "ollama":
+        try:
+            return ollama_validate_answer(
+                answer=answer,
+                contexts=contexts,
+                base_url=settings.ollama_base_url,
+                model=settings.ollama_model,
+            )
+        except Exception as exc:
+            log.warning("validate_llm_fallback", error=str(exc))
+            return _heuristic_validate_answer(answer, contexts)
+    return _heuristic_validate_answer(answer, contexts)
+
+
+def _heuristic_validate_answer(answer: str, contexts: list[str]) -> AnswerValidation:
     if not contexts:
         return AnswerValidation(grounded=False, issues=["no context"])
     joined = " ".join(contexts).lower()
@@ -88,6 +147,23 @@ def validate_answer(answer: str, contexts: list[str]) -> AnswerValidation:
 
 
 def generate_from_context(query: str, contexts: list[str], route: RouteKind) -> str:
+    settings = get_settings()
+    if settings.llm_provider == "ollama" and route != ROUTE_DIRECT and contexts:
+        try:
+            return ollama_generate_from_context(
+                query=query,
+                contexts=contexts,
+                route=route,
+                base_url=settings.ollama_base_url,
+                model=settings.ollama_model,
+            )
+        except Exception as exc:
+            log.warning("generate_llm_fallback", error=str(exc))
+            return _heuristic_generate_from_context(query, contexts, route)
+    return _heuristic_generate_from_context(query, contexts, route)
+
+
+def _heuristic_generate_from_context(query: str, contexts: list[str], route: RouteKind) -> str:
     if route == ROUTE_DIRECT:
         return DIRECT_GREETING_RESPONSE
     if not contexts:
