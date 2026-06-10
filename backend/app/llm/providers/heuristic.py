@@ -86,8 +86,9 @@ def heuristic_generate(
             for turn in chat_history[:-1]
         ]
         history_block = "Conversation so far:\n" + "\n\n".join(prior_lines) + "\n\n"
-    first_words = " ".join(contexts[0].split()[:_HEURISTIC_ANSWER_WORD_LIMIT])
-    suffix = "..." if len(contexts[0]) > _HEURISTIC_ANSWER_WORD_LIMIT else ""
+    words = contexts[0].split()
+    first_words = " ".join(words[:_HEURISTIC_ANSWER_WORD_LIMIT])
+    suffix = "..." if len(words) > _HEURISTIC_ANSWER_WORD_LIMIT else ""
     return (
         f"{history_block}Based on the retrieved documents:\n\n{numbered}\n\n"
         f"Answer to your question ({query!r}): {first_words}{suffix}"
