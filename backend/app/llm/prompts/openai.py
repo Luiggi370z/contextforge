@@ -1,4 +1,4 @@
-"""Ollama system and user prompts."""
+"""OpenAI prompts (mirror the Ollama prompt structure for cross-provider parity)."""
 
 from __future__ import annotations
 
@@ -7,49 +7,46 @@ from collections.abc import Sequence
 from app.llm.models import RouteKind
 
 SYSTEM_PROMPT_ROUTE = (
-    "Classify the user query route as one of: direct, single_hop_rag, multi_hop. "
-    "Return JSON only with fields route, confidence, and reasoning."
+    "Classify the user query into exactly one of: direct, single_hop_rag, multi_hop. "
+    "direct = greetings or small talk that needs no documents. "
+    "single_hop_rag = factual question answerable from one or two policy chunks. "
+    "multi_hop = comparison or multi-part question that needs evidence from several chunks. "
+    "Return a structured decision with a brief reasoning."
 )
 SYSTEM_PROMPT_GRADE = (
-    "Grade whether retrieved context is relevant enough to answer the query. "
-    "Return JSON only with fields relevant, score, and should_abstain."
+    "Decide whether the retrieved policy chunks are sufficient to answer the user's question. "
+    "Set should_abstain=true only when no chunk meaningfully helps. "
+    "Score is your confidence that the chunks are relevant (0..1)."
 )
 SYSTEM_PROMPT_VALIDATE = (
-    "You are an entailment checker. Decide whether every factual claim in the answer is "
-    "directly supported by at least one of the provided contexts. "
-    "Set grounded=true only when every claim is supported. "
-    "If the answer says it does not have enough information, treat it as grounded. "
-    "If unsupported, list each unsupported claim under issues. "
-    "Return JSON only with fields grounded (bool) and issues (list of strings)."
+    "Decide whether the answer is entailed by the provided contexts. "
+    "grounded=true means every factual claim in the answer is supported by at least one context. "
+    "If the answer says it does not know, treat it as grounded. "
+    "List any unsupported claims under issues."
 )
 SYSTEM_PROMPT_RETRIEVAL_QUERY = (
-    "Rewrite the conversation into one standalone search query for retrieving policy "
-    "documents. The query must answer what the user wants to know from their latest "
-    "message. If the latest message is a short follow-up that depends on the prior "
-    "turn (pronouns, 'is it', 'what about'), carry the subject forward into the query. "
-    "If the latest message changes topic, use only the new subject and drop the old "
-    "keywords. Reply with the search query text only - no quotes, labels, or "
-    "explanation."
+    "You rewrite a multi-turn conversation into one standalone search query for retrieving "
+    "policy documents. The query must answer what the user wants to know from their latest "
+    "message. If the latest message is a short follow-up, carry forward the subject from the "
+    "prior turn. If the latest message changes topic, use only the new subject and drop the old "
+    "keywords. references_prior_turn must be true when the latest message would be ambiguous "
+    "without the prior turn (e.g. pronouns, 'is it', 'what about')."
 )
 SYSTEM_PROMPT_GENERATE = (
-    "Answer the user's question using only the provided context snippets. "
+    "You answer the user's question using only the provided context snippets. "
     "Be direct and concise. Quote or paraphrase the policy when it answers the question. "
     "Cite the snippet you used at the end of each claim using [1], [2] tags matching the "
     "numbered context blocks. Every factual claim must be backed by at least one tag. "
-    "If the policy applies only to a specific scope (for example production systems), state "
-    "that scope clearly instead of claiming the documents are silent. "
+    "If the policy applies only to a specific scope (e.g. production systems), state that scope "
+    "clearly instead of claiming the documents are silent. "
     "Do not contradict a snippet that already answers part of the question. "
     "If no snippet is relevant, say: \"I don't have enough information in the indexed "
     "documents to answer that.\""
 )
 
 
-def format_numbered_contexts(contexts: Sequence[str]) -> str:
+def _format_numbered_contexts(contexts: Sequence[str]) -> str:
     return "\n\n".join(f"[{index + 1}] {value}" for index, value in enumerate(contexts))
-
-
-def build_route_user_prompt(message: str) -> str:
-    return message
 
 
 def build_retrieval_query_user_prompt(*, conversation: str, latest_message: str) -> str:
@@ -72,17 +69,14 @@ def build_grade_user_prompt(
             "",
             f"Reference score threshold (reranker): {threshold}",
             "",
-            f"Retrieved chunks:\n{format_numbered_contexts(contexts)}",
-            "",
-            "Return JSON with relevant, score, and should_abstain. "
-            "Set should_abstain true only if no chunk helps answer the question.",
+            f"Retrieved chunks:\n{_format_numbered_contexts(contexts)}",
         ]
     )
     return "\n".join(parts)
 
 
 def build_validate_user_prompt(*, answer: str, contexts: Sequence[str]) -> str:
-    return f"Answer:\n{answer}\n\nContexts:\n{format_numbered_contexts(contexts)}"
+    return f"Answer:\n{answer}\n\nContexts:\n{_format_numbered_contexts(contexts)}"
 
 
 def build_generate_user_prompt(
@@ -104,5 +98,5 @@ def build_generate_user_prompt(
                 f"Resolved subject (use this to disambiguate follow-ups):\n{retrieval_query}",
             ]
         )
-    parts.extend(["", f"Contexts:\n{format_numbered_contexts(contexts)}"])
+    parts.extend(["", f"Contexts:\n{_format_numbered_contexts(contexts)}"])
     return "\n".join(parts)

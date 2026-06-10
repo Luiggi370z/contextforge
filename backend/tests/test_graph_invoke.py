@@ -32,7 +32,7 @@ async def test_invoke_direct_route_skips_retrieve():
         thread_id="thread-direct",
     )
 
-    assert state["route"] == ROUTE_DIRECT
+    assert state.get("route") == ROUTE_DIRECT
     config = mock_graph.ainvoke.call_args.kwargs["config"]
     assert config["configurable"]["thread_id"] == "thread-direct"
 

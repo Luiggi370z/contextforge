@@ -8,7 +8,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from app.core.config import get_settings
-from app.retrieval.embeddings import _DIM, embed_texts
+from app.retrieval.embeddings import _DIM, embed_texts_async
 
 log = structlog.get_logger(__name__)
 
@@ -47,7 +47,7 @@ class QdrantStore:
         texts: list[str],
     ) -> None:
         await self.ensure_collection()
-        vectors = embed_texts(texts)
+        vectors = await embed_texts_async(texts)
         points = [
             qmodels.PointStruct(
                 id=str(chunk_id),
@@ -64,7 +64,7 @@ class QdrantStore:
 
     async def dense_search(self, query: str, limit: int = 20) -> list[VectorRecord]:
         await self.ensure_collection()
-        query_vector = embed_texts([query])[0]
+        query_vector = (await embed_texts_async([query]))[0]
         results = await self._client.query_points(
             collection_name=self._collection,
             query=query_vector,

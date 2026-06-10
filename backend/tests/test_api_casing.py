@@ -1,7 +1,7 @@
 import uuid
 
-from app.api.v1.query.schemas import QueryMetadata, QueryResponse
 from app.api.v1.health.schemas import HealthResponse
+from app.api.v1.query.schemas import QueryMetadata, QueryResponse
 from app.schemas.errors import ErrorResponse
 
 

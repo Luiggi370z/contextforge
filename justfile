@@ -32,6 +32,10 @@ eval-heuristic:
 test:
     cd backend && uv run pytest -q
 
+# End-to-end golden-set eval (heuristic provider, in-memory corpus, deterministic)
+test-eval:
+    cd backend && uv run pytest -q -m eval
+
 lint:
     cd backend && uv run ruff check . && uv run pyright
 

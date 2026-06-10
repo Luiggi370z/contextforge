@@ -14,3 +14,12 @@ def _clear_embedding_cache():
     embeddings._sentence_model.cache_clear()
     yield
     embeddings._sentence_model.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_llm_provider_cache():
+    from app.llm.providers import reset_llm_provider_cache
+
+    reset_llm_provider_cache()
+    yield
+    reset_llm_provider_cache()

@@ -12,9 +12,9 @@ from app.core.constants import THREAD_TITLE_MAX_CHARS
 from app.db.models import Message, Thread
 from app.graph.builder import stream_invoke_agent_graph
 from app.graph.conversation import ChatTurn, load_recent_thread_messages
-from app.llm.retrieval_query import build_retrieval_query
 from app.graph.pipeline import run_agent_pipeline
 from app.graph.state import GraphState
+from app.llm.retrieval_query import build_retrieval_query
 from app.retrieval.qdrant_store import QdrantStore, get_qdrant_store
 
 log = structlog.get_logger(__name__)

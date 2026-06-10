@@ -14,7 +14,6 @@ DOCUMENT_STATUS_INGESTED = "ingested"
 ROUTE_DIRECT = "direct"
 ROUTE_SINGLE_HOP_RAG = "single_hop_rag"
 ROUTE_MULTI_HOP = "multi_hop"
-ROUTE_UNKNOWN = "unknown"
 
 # Graph node names (logging / debug metadata)
 GRAPH_NODE_ROUTE = "route"

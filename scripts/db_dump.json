@@ -1,0 +1,16 @@
+{
+  "summary": {
+    "database_url": "localhost:5434/contextforge",
+    "qdrant_url": "http://localhost:6333",
+    "qdrant_collection": "contextforge",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "embedding_backend": "sentence-transformers",
+    "document_count": 0,
+    "chunk_count": 0,
+    "chunks_with_embedding": 0,
+    "chunks_without_embedding": 0,
+    "qdrant_points_total": 0,
+    "qdrant_points_without_chunk": 0
+  },
+  "documents": []
+}

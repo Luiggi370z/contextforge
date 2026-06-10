@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-LLMProvider = Literal["heuristic", "openai", "pydantic_ai", "ollama"]
+LLMProvider = Literal["heuristic", "openai", "ollama"]
 
 
 class Settings(BaseSettings):

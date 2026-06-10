@@ -5,13 +5,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
 sys.path.insert(0, str(EVAL_DIR))
 
-from golden_loader import GoldenRow, load_golden  # noqa: E402
-from heuristic_metrics import score_row, summarize_heuristic  # noqa: E402
+from golden_loader import GoldenRow, load_golden  # type: ignore[import-not-found]  # noqa: E402
+from heuristic_metrics import (  # type: ignore[import-not-found]  # noqa: E402
+    score_row,
+    summarize_heuristic,
+)
 
 
 def test_load_golden_has_fifteen_rows():

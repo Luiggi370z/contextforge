@@ -53,6 +53,12 @@ packages = ["app"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+# The golden-set eval downloads a sentence-transformers model (~90 MB) so it is
+# opt-in. ``just test-eval`` and CI run it explicitly with ``pytest -m eval``.
+addopts = "-m 'not eval'"
+markers = [
+    "eval: end-to-end retrieval + abstain evaluation over the golden set",
+]
 
 [tool.ruff]
 line-length = 100

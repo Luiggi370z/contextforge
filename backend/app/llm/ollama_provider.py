@@ -6,8 +6,8 @@ import json
 
 import httpx
 
-from app.llm.models import AnswerValidation, RetrievalGrade, RouteDecision, RouteKind
 from app.graph.conversation import ChatTurn, format_chat_history
+from app.llm.models import AnswerValidation, RetrievalGrade, RouteDecision, RouteKind
 from app.llm.prompts.ollama import (
     SYSTEM_PROMPT_GENERATE,
     SYSTEM_PROMPT_GRADE,
@@ -165,6 +165,7 @@ async def generate_from_context(
     base_url: str,
     model: str,
     chat_history: list[dict[str, str]] | None = None,
+    retrieval_query: str | None = None,
 ) -> str:
     conversation: str | None = None
     if chat_history and len(chat_history) > 1:
@@ -178,6 +179,7 @@ async def generate_from_context(
         query=query,
         contexts=contexts,
         conversation=conversation,
+        retrieval_query=retrieval_query,
     )
     return await _chat_async(
         base_url=base_url,

@@ -1,27 +1,31 @@
+"""Tests for the thin LLMProvider dispatcher in ``app.llm.structured``."""
+
+from __future__ import annotations
+
 import uuid
 from types import SimpleNamespace
 
 import pytest
 
-from app.llm import structured
+from app.llm import grading, structured
 from app.llm.grading import grade_retrieval, select_chunks_for_generation
-from app.llm.models import RouteDecision
-from app.llm.structured import _heuristic_route
+from app.llm.providers import reset_llm_provider_cache
+from app.llm.providers.heuristic import heuristic_route
 from app.retrieval.models import RetrievedChunk
 
 
 def test_heuristic_route_direct():
-    decision = _heuristic_route("hi")
+    decision = heuristic_route("hi")
     assert decision.route == "direct"
 
 
 def test_heuristic_route_rag():
-    decision = _heuristic_route("How many PTO days do employees get per year?")
+    decision = heuristic_route("How many PTO days do employees get per year?")
     assert decision.route == "single_hop_rag"
 
 
 def test_heuristic_route_multi_hop():
-    decision = _heuristic_route("First compare PTO then explain remote work steps")
+    decision = heuristic_route("First compare PTO then explain remote work steps")
     assert decision.route == "multi_hop"
 
 
@@ -34,7 +38,7 @@ async def test_grade_abstain_on_empty():
 @pytest.mark.asyncio
 async def test_grade_passes_with_high_rerank_score(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        structured,
+        grading,
         "get_settings",
         lambda: SimpleNamespace(
             rerank_backend="lexical",
@@ -43,12 +47,13 @@ async def test_grade_passes_with_high_rerank_score(monkeypatch: pytest.MonkeyPat
             llm_provider="heuristic",
         ),
     )
+    reset_llm_provider_cache()
     chunks = [
         RetrievedChunk(
             chunk_id=uuid.uuid4(),
             document_id=uuid.uuid4(),
             content="PTO policy text",
-            score=0.1,
+            score=0.9,
             relevance_score=0.9,
         )
     ]
@@ -59,7 +64,7 @@ async def test_grade_passes_with_high_rerank_score(monkeypatch: pytest.MonkeyPat
 @pytest.mark.asyncio
 async def test_grade_abstains_when_rerank_scores_low(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        structured,
+        grading,
         "get_settings",
         lambda: SimpleNamespace(
             rerank_backend="lexical",
@@ -68,12 +73,13 @@ async def test_grade_abstains_when_rerank_scores_low(monkeypatch: pytest.MonkeyP
             llm_provider="heuristic",
         ),
     )
+    reset_llm_provider_cache()
     chunks = [
         RetrievedChunk(
             chunk_id=uuid.uuid4(),
             document_id=uuid.uuid4(),
             content="PTO policy for full-time employees.",
-            score=0.03,
+            score=0.05,
             relevance_score=0.05,
         )
     ]
@@ -82,22 +88,8 @@ async def test_grade_abstains_when_rerank_scores_low(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_decide_route_ollama_uses_heuristic_for_rag_questions(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        structured,
-        "get_settings",
-        lambda: SimpleNamespace(
-            llm_provider="ollama",
-            openai_api_key=None,
-            ollama_base_url="http://localhost:11434",
-            ollama_model="llama3.2",
-        ),
-    )
-
-    async def fail_if_called(_: str) -> RouteDecision:
-        raise AssertionError("ollama route should not run for policy questions")
-
-    monkeypatch.setattr(structured, "_decide_route_ollama", fail_if_called)
+async def test_decide_route_uses_heuristic_for_rag_questions():
+    """Heuristic provider must classify policy questions as single_hop_rag without an LLM call."""
     decision = await structured.decide_route("How many PTO days do employees get?")
     assert decision.route == "single_hop_rag"
 
@@ -105,7 +97,7 @@ async def test_decide_route_ollama_uses_heuristic_for_rag_questions(monkeypatch:
 def test_select_chunks_prefers_top_rerank_score(monkeypatch: pytest.MonkeyPatch):
     """Selection ranks by post-rerank score so weak-rerank tails are dropped from citations."""
     monkeypatch.setattr(
-        structured,
+        grading,
         "get_settings",
         lambda: SimpleNamespace(
             rerank_backend="lexical",

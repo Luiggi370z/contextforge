@@ -1,3 +1,5 @@
+"""Ingest a document: split, persist chunks (with metadata), upsert vectors."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,7 +13,7 @@ from app.core.constants import (
     DOCUMENT_STATUS_PROCESSING,
 )
 from app.db.models import Chunk, Document
-from app.ingestion.chunker import split_text
+from app.ingestion.chunker import split_text_into_chunks
 from app.retrieval.qdrant_store import QdrantStore
 
 log = structlog.get_logger(__name__)
@@ -25,6 +27,7 @@ async def ingest_document_text(
     content: str,
     content_type: str = DEFAULT_MARKDOWN_CONTENT_TYPE,
 ) -> Document:
+    """Persist a document + chunks + vectors with structure-aware contextual prefixes."""
     doc = Document(
         filename=filename,
         content_type=content_type,
@@ -33,25 +36,26 @@ async def ingest_document_text(
     db.add(doc)
     await db.flush()
 
-    pieces = split_text(content)
+    pieces = split_text_into_chunks(content, filename=filename)
     chunk_ids: list[uuid.UUID] = []
-    texts: list[str] = []
-    for index, piece in enumerate(pieces):
+    embedding_texts: list[str] = []
+    for piece in pieces:
         chunk = Chunk(
             document_id=doc.id,
-            chunk_index=index,
-            content=piece,
-            metadata_={"filename": filename},
+            chunk_index=piece.metadata["chunk_index"],
+            content=piece.body,
+            metadata_={
+                **piece.metadata,
+                "context_prefix": piece.context_prefix,
+            },
         )
         db.add(chunk)
         await db.flush()
         chunk_ids.append(chunk.id)
-        texts.append(piece)
+        embedding_texts.append(piece.content)
         chunk.qdrant_point_id = str(chunk.id)
 
-    # TODO(retrieval-backend): if postgres mode, persist embeddings on Chunk rows (pgvector)
-    # and refresh content_tsv; skip Qdrant upsert.
-    await qdrant.upsert_chunks(doc.id, chunk_ids, texts)
+    await qdrant.upsert_chunks(doc.id, chunk_ids, embedding_texts)
     doc.status = DOCUMENT_STATUS_INGESTED
     await db.commit()
     await db.refresh(doc)

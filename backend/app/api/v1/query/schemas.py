@@ -1,7 +1,7 @@
 import uuid
 from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from app.schemas.base import BaseRequest, BaseResponse
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from typing import Any, Literal
+
 import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
@@ -109,6 +110,7 @@ def _initial_graph_state(
     *,
     retrieval_query: str | None = None,
     chat_history: list[dict[str, str]] | None = None,
+    trace_id: str | None = None,
 ) -> GraphState:
     return {
         "query": query,
@@ -119,12 +121,14 @@ def _initial_graph_state(
         "citations": [],
         "abstained": False,
         "retrieval_scores": [],
+        "trace_id": trace_id or "",
     }
 
 
 def _finalize_graph_state(state: GraphState) -> GraphState:
     if isinstance(state, dict):
         state.pop("_chunks", None)
+        state.pop("_selected_chunks", None)
     return state
 
 
@@ -138,6 +142,7 @@ async def invoke_agent_graph(
     thread_id: str | None = None,
     retrieval_query: str | None = None,
     chat_history: list[dict[str, str]] | None = None,
+    trace_id: str | None = None,
 ) -> GraphState:
     """Run the agent graph; ``thread_id`` enables Postgres checkpoint resume."""
     compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
@@ -147,6 +152,7 @@ async def invoke_agent_graph(
             query,
             retrieval_query=retrieval_query,
             chat_history=chat_history,
+            trace_id=trace_id or thread_id,
         ),
         config=config,
     )
@@ -163,6 +169,7 @@ async def stream_invoke_agent_graph(
     thread_id: str | None = None,
     retrieval_query: str | None = None,
     chat_history: list[dict[str, str]] | None = None,
+    trace_id: str | None = None,
 ) -> AsyncIterator[str | GraphState]:
     """Yield each completed node name, then the final graph state."""
     compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
@@ -171,12 +178,13 @@ async def stream_invoke_agent_graph(
         query,
         retrieval_query=retrieval_query,
         chat_history=chat_history,
+        trace_id=trace_id or thread_id,
     )
     async for update in compiled.astream(state, config=config, stream_mode="updates"):
         if not isinstance(update, dict):
             continue
         for node_name, node_update in update.items():
             if isinstance(node_update, dict):
-                state = {**state, **node_update}
+                state = {**state, **node_update}  # type: ignore[typeddict-item]
             yield node_name
     yield _finalize_graph_state(state)
