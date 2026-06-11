@@ -30,7 +30,7 @@ eval-heuristic:
 
 # Backend
 test:
-    cd backend && uv run pytest -q
+    cd backend && uv run pytest -q -n 8
 
 # End-to-end golden-set eval (heuristic provider, in-memory corpus, deterministic)
 test-eval:

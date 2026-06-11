@@ -214,9 +214,9 @@ follow-up like "so is it mandatory?" is answered against the right topic. Thread
 history is loaded by `graph/conversation.py` (`load_recent_thread_messages`, last
 `CONVERSATION_HISTORY_LIMIT=10` turns) before the graph runs.
 
-## Contextual chunking
+## Structural context prefix (chunking)
 
-`split_text_into_chunks` (Anthropic-style contextual retrieval):
+`split_text_into_chunks` adds a **structural** context prefix (not the LLM-generated contextual-retrieval technique — that is planned, see the adoption plan):
 
 - Walks Markdown headings to identify sections (heading-less text falls back to a
   `Body` section).

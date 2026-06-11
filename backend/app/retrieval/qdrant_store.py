@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 
 import structlog
 from qdrant_client import AsyncQdrantClient
@@ -9,16 +8,9 @@ from qdrant_client.http import models as qmodels
 
 from app.core.config import get_settings
 from app.retrieval.embeddings import _DIM, embed_texts_async
+from app.retrieval.models import VectorRecord
 
 log = structlog.get_logger(__name__)
-
-
-@dataclass
-class VectorRecord:
-    chunk_id: uuid.UUID
-    document_id: uuid.UUID
-    content: str
-    score: float
 
 
 # TODO(retrieval-backend): Keep as Qdrant implementation of a shared VectorStore protocol.
@@ -26,10 +18,16 @@ class VectorRecord:
 
 
 class QdrantStore:
+    name = "qdrant"
+
     def __init__(self) -> None:
         settings = get_settings()
         self._client = AsyncQdrantClient(url=settings.qdrant_url)
         self._collection = settings.qdrant_collection
+
+    async def ensure_ready(self) -> None:
+        """VectorStore protocol alias for :meth:`ensure_collection`."""
+        await self.ensure_collection()
 
     async def ensure_collection(self) -> None:
         exists = await self._client.collection_exists(self._collection)
@@ -45,7 +43,16 @@ class QdrantStore:
         document_id: uuid.UUID,
         chunk_ids: list[uuid.UUID],
         texts: list[str],
+        bodies: list[str],
     ) -> None:
+        """Embed ``texts`` (prefixed) but store ``bodies`` (clean) in the payload.
+
+        The dense vector is computed from the prefixed ``texts`` so retrieval
+        still benefits from the structural context. The payload ``content`` is
+        the clean body, so citation snippets never leak the prefix. Callers MUST
+        pass the clean bodies; there is no implicit fallback, so the prefix can
+        never silently leak into the payload.
+        """
         await self.ensure_collection()
         vectors = await embed_texts_async(texts)
         points = [
@@ -55,10 +62,12 @@ class QdrantStore:
                 payload={
                     "document_id": str(document_id),
                     "chunk_id": str(chunk_id),
-                    "content": text,
+                    "content": body,
                 },
             )
-            for chunk_id, vector, text in zip(chunk_ids, vectors, texts, strict=True)
+            for chunk_id, vector, body in zip(
+                chunk_ids, vectors, bodies, strict=True
+            )
         ]
         await self._client.upsert(collection_name=self._collection, points=points)
 

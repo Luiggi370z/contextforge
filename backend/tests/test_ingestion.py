@@ -56,4 +56,9 @@ async def test_ingest_document_text_sets_status_and_upserts_qdrant():
     embedded_texts = upsert_args[2]
     assert embedded_texts[0].endswith("part-a body")
     assert "Section: Policy" in embedded_texts[0]
+    # The clean bodies must flow as the ``bodies`` kwarg so citations never leak
+    # the structural prefix that the embedding text carries.
+    upsert_kwargs = qdrant.upsert_chunks.await_args.kwargs
+    assert "bodies" in upsert_kwargs
+    assert all(not b.startswith("Document: ") for b in upsert_kwargs["bodies"])
     session.commit.assert_awaited()

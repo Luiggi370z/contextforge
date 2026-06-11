@@ -87,8 +87,10 @@ async def cross_encoder_rerank_async(
 ) -> list[RetrievedChunk]:
     """Run the cross-encoder off the event loop and merge scores back in.
 
-    Falls back to :func:`lexical_rerank` when the optional ``ml`` extra is
-    not installed.
+    Falls back to :func:`lexical_rerank` when the optional ``ml`` extra is not
+    installed, and to the incoming (RRF-ordered) candidate list when the model
+    exceeds ``settings.rerank_timeout_s`` so a slow reranker degrades gracefully
+    instead of stalling the streamed response.
     """
     if not candidates:
         return []
@@ -99,7 +101,23 @@ async def cross_encoder_rerank_async(
         return lexical_rerank(query, candidates, top_n)
 
     pairs = [(query, chunk.content) for chunk in candidates]
-    scores = await asyncio.to_thread(model.predict, pairs)
+    timeout = get_settings().rerank_timeout_s
+    try:
+        if timeout > 0:
+            scores = await asyncio.wait_for(
+                asyncio.to_thread(model.predict, pairs), timeout=timeout
+            )
+        else:
+            scores = await asyncio.to_thread(model.predict, pairs)
+    except TimeoutError:
+        log.warning(
+            "cross_encoder_timeout",
+            timeout_s=timeout,
+            candidates=len(candidates),
+            fallback="rrf_order",
+        )
+        return candidates[:top_n]
+
     ranked = sorted(
         zip(candidates, scores, strict=True),
         key=lambda pair: float(pair[1]),

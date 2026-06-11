@@ -16,13 +16,20 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.constants import RETRIEVAL_BACKEND_POSTGRES, RETRIEVAL_BACKEND_QDRANT
+from app.core.constants import (
+    RERANK_BACKEND_CROSS_ENCODER,
+    RETRIEVAL_BACKEND_POSTGRES,
+    RETRIEVAL_BACKEND_QDRANT,
+)
+from app.retrieval.embedders import HashEmbedder, SentenceTransformerEmbedder
 from app.retrieval.hybrid import hybrid_retrieve
 from app.retrieval.models import RetrievedChunk
+from app.retrieval.protocols import Embedder, Reranker, VectorStore
 from app.retrieval.qdrant_store import QdrantStore, get_qdrant_store
+from app.retrieval.rerankers import CrossEncoderReranker, LexicalReranker
 
 
-def get_vector_store() -> QdrantStore:
+def get_vector_store() -> VectorStore:
     """Return the active dense-vector store for the configured retrieval backend."""
     settings = get_settings()
     if settings.retrieval_backend == RETRIEVAL_BACKEND_POSTGRES:
@@ -32,6 +39,22 @@ def get_vector_store() -> QdrantStore:
             f"use {RETRIEVAL_BACKEND_QDRANT}"
         )
     return get_qdrant_store()
+
+
+def get_embedder() -> Embedder:
+    """Return the configured embedder implementation."""
+    settings = get_settings()
+    if settings.embedding_backend == "hash":
+        return HashEmbedder()
+    return SentenceTransformerEmbedder()
+
+
+def get_reranker() -> Reranker:
+    """Return the configured reranker implementation."""
+    settings = get_settings()
+    if settings.rerank_backend == RERANK_BACKEND_CROSS_ENCODER:
+        return CrossEncoderReranker()
+    return LexicalReranker()
 
 
 async def hybrid_retrieve_configured(

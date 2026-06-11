@@ -1,19 +1,21 @@
-"""Structure-aware chunking with Anthropic-style contextual prefixes.
+"""Structure-aware chunking with a structural context prefix.
 
 The splitter walks the document by Markdown headings, then falls back to a
 recursive character splitter inside each section. Every emitted chunk carries:
 
 - ``body``: the raw chunk text the user will see in citations.
-- ``context_prefix``: ``Document: {filename} > Section: {section}`` — prepended
-  to ``body`` before embedding so dense retrieval picks up the section topic
-  even when the body itself does not repeat it.
+- ``context_prefix``: ``Document: {filename} > Section: {section}`` — a static,
+  structural prefix prepended to ``body`` before embedding so dense retrieval
+  picks up the section topic even when the body itself does not repeat it.
 - ``content``: the concatenated string we actually embed.
 - ``metadata``: ``{ "filename", "section", "chunk_index" }`` so the API can
   display the section a citation came from.
 
-This is the pattern Anthropic showed in their contextual retrieval blog post
-(2024-09): pre-pending lightweight structural context to each chunk improves
-retrieval recall meaningfully without changing the retriever or model.
+NOTE: This is a *structural* prefix, NOT Anthropic's contextual-retrieval
+technique (which uses an LLM to write a per-chunk situating blurb from the whole
+document). The LLM version is planned — see the contextual-retrieval wave of the
+adoption plan. Until then this is honest structural enrichment, not the LLM
+technique.
 """
 
 from __future__ import annotations

@@ -39,6 +39,7 @@ async def ingest_document_text(
     pieces = split_text_into_chunks(content, filename=filename)
     chunk_ids: list[uuid.UUID] = []
     embedding_texts: list[str] = []
+    bodies: list[str] = []
     for piece in pieces:
         chunk = Chunk(
             document_id=doc.id,
@@ -53,9 +54,10 @@ async def ingest_document_text(
         await db.flush()
         chunk_ids.append(chunk.id)
         embedding_texts.append(piece.content)
+        bodies.append(piece.body)
         chunk.qdrant_point_id = str(chunk.id)
 
-    await qdrant.upsert_chunks(doc.id, chunk_ids, embedding_texts)
+    await qdrant.upsert_chunks(doc.id, chunk_ids, embedding_texts, bodies=bodies)
     doc.status = DOCUMENT_STATUS_INGESTED
     await db.commit()
     await db.refresh(doc)

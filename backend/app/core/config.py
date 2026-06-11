@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 20
     rerank_top_n: int = 5
     rerank_backend: str = "lexical"
+    # Max seconds the cross-encoder reranker may run before we fall back to the
+    # RRF-ordered candidate list. Keeps the streamed read-path responsive when
+    # the model is cold/slow. 0 or negative disables the timeout.
+    rerank_timeout_s: float = 5.0
     # Lexical rerank / dense relevance scores are typically 0–1.
     grade_min_score: float = 0.25
     # Cross-encoder logits (ms-marco); negative scores are often irrelevant.

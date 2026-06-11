@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-
 from golden_loader import GoldenRow, load_golden
 from heuristic_metrics import score_row, summarize_heuristic
 from report_writer import write_json_report, write_markdown_summary
@@ -42,6 +41,10 @@ def fetch_answers(base_url: str, rows: list[GoldenRow]) -> list[dict[str, Any]]:
             payload = response.json()
             citations = payload.get("citations") or []
             metadata = payload.get("metadata") or {}
+            retrieved_docs = [
+                str(citation.get("documentId") or citation.get("document_id") or "")
+                for citation in citations
+            ]
             results.append(
                 {
                     "question": row.question,
@@ -51,6 +54,7 @@ def fetch_answers(base_url: str, rows: list[GoldenRow]) -> list[dict[str, Any]]:
                     "reference_doc": row.reference_doc,
                     "abstained": bool(metadata.get("abstained", False)),
                     "route": metadata.get("route"),
+                    "retrieved_docs": retrieved_docs,
                 }
             )
     return results
@@ -59,7 +63,12 @@ def fetch_answers(base_url: str, rows: list[GoldenRow]) -> list[dict[str, Any]]:
 def run_ragas_judge(records: list[dict[str, Any]]) -> dict[str, float]:
     from datasets import Dataset
     from ragas import evaluate
-    from ragas.metrics import answer_relevancy, context_precision, faithfulness
+    from ragas.metrics import (
+        answer_relevancy,
+        context_precision,
+        context_recall,
+        faithfulness,
+    )
 
     dataset = Dataset.from_dict(
         {
@@ -71,7 +80,9 @@ def run_ragas_judge(records: list[dict[str, Any]]) -> dict[str, float]:
     )
     result = evaluate(
         dataset,
-        metrics=[faithfulness, answer_relevancy, context_precision],
+        # context_recall is the one metric that uses ground_truth ("did we retrieve
+        # everything needed?"); golden rows already carry it.
+        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
     )
     frame = result.to_pandas()
     means: dict[str, float] = {}
@@ -83,6 +94,23 @@ def run_ragas_judge(records: list[dict[str, Any]]) -> dict[str, float]:
         except (TypeError, ValueError):
             continue
     return means
+
+
+# NOTE: live citations expose only document UUIDs (Citation.document_id), while the
+# golden reference_doc is a filename — so these live IR numbers are structurally ~0 and
+# NOT meaningful. The trustworthy, filename-keyed IR metrics come from the offline
+# tests/test_eval_ir.py gate. This live computation is kept only for payload completeness.
+def run_ir(records: list[dict[str, Any]]) -> dict[str, float]:
+    from ir_metrics import summarize_ir
+
+    rows = [
+        {
+            "retrieved": record.get("retrieved_docs") or [],
+            "relevant": {record["reference_doc"]} if not record.get("abstained") else set(),
+        }
+        for record in records
+    ]
+    return summarize_ir(rows)
 
 
 def run_heuristic(rows: list[GoldenRow], records: list[dict[str, Any]]) -> dict[str, float]:
@@ -125,6 +153,7 @@ def main() -> int:
 
     records = fetch_answers(args.api_url, rows)
     heuristic_means = run_heuristic(rows, records)
+    ir_means = run_ir(records)
 
     ragas_means: dict[str, float] | None = None
     if not args.heuristic_only:
@@ -142,6 +171,7 @@ def main() -> int:
 
     report_payload: dict[str, Any] = {
         "row_count": len(rows),
+        "ir": ir_means,
         "heuristic": heuristic_means,
         "ragas": ragas_means,
         "rows": records,
@@ -151,6 +181,7 @@ def main() -> int:
         row_count=len(rows),
         ragas_means=ragas_means,
         heuristic_means=heuristic_means,
+        ir_means=ir_means,
         reports_dir=args.reports_dir,
     )
     print(f"Wrote {json_path}")
@@ -158,6 +189,7 @@ def main() -> int:
     if ragas_means:
         print("RAGAS means:", ragas_means)
     print("Heuristic means:", heuristic_means)
+    print("IR means:", ir_means)
     return 0
 
 

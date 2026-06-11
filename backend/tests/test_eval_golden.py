@@ -17,7 +17,6 @@ The assertions cover the three behaviours we keep regressing on:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -25,61 +24,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.config import get_settings
 from app.graph.builder import invoke_agent_graph
-from app.llm.providers import reset_llm_provider_cache
-from app.retrieval import embeddings as embeddings_module
 from tests.eval_harness import InMemoryCorpus, hybrid_retrieve_in_memory
 
 EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
-SAMPLE_CORPUS = Path(__file__).resolve().parents[2] / "sample_corpus"
 
 sys.path.insert(0, str(EVAL_DIR))
 from golden_loader import load_golden  # type: ignore[import-not-found]  # noqa: E402
 
 pytestmark = pytest.mark.eval
-
-
-_PRODUCTION_LIKE_ENV = {
-    # Hash embeddings are deterministic noise; the eval is a behaviour gate, so it
-    # has to run against the same embedder, BM25, RRF and reranker the product
-    # actually ships.
-    "EMBEDDING_BACKEND": "sentence-transformers",
-    # Cross-encoder is the modern reranker the architecture is built around. The
-    # accompanying ``grade_min_score_cross_encoder`` threshold (0.0) handles
-    # abstention via a real semantic signal, not vocabulary heuristics.
-    "RERANK_BACKEND": "cross_encoder",
-}
-
-
-@pytest.fixture(scope="module")
-def real_embeddings():
-    """Run the eval with the production-recommended embed + rerank stack."""
-    previous = {key: os.environ.get(key) for key in _PRODUCTION_LIKE_ENV}
-    for key, value in _PRODUCTION_LIKE_ENV.items():
-        os.environ[key] = value
-    get_settings.cache_clear()
-    embeddings_module._sentence_model.cache_clear()
-    try:
-        yield
-    finally:
-        for key, previous_value in previous.items():
-            if previous_value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = previous_value
-        get_settings.cache_clear()
-        embeddings_module._sentence_model.cache_clear()
-        reset_llm_provider_cache()
-
-
-@pytest.fixture(scope="module")
-def corpus(real_embeddings) -> InMemoryCorpus:
-    """Seed an in-memory corpus from the same Markdown the demo ingests."""
-    bundle = InMemoryCorpus()
-    for path in sorted(SAMPLE_CORPUS.glob("*.md")):
-        bundle.ingest(filename=path.name, content=path.read_text(encoding="utf-8"))
-    return bundle
 
 
 @pytest.fixture

@@ -26,6 +26,7 @@ def write_markdown_summary(
     row_count: int,
     ragas_means: dict[str, float] | None,
     heuristic_means: dict[str, float] | None,
+    ir_means: dict[str, float] | None = None,
     reports_dir: Path = REPORTS_DIR,
 ) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -37,6 +38,12 @@ def write_markdown_summary(
         f"- **Generated (UTC):** {datetime.now(UTC).isoformat()}",
         "",
     ]
+    if ir_means:
+        lines.append("## Retrieval IR metrics (mean) — offline gate only; live numbers are not meaningful")  # noqa: E501
+        lines.append("")
+        for key, value in sorted(ir_means.items()):
+            lines.append(f"- **{key}:** {value:.4f}")
+        lines.append("")
     if ragas_means:
         lines.append("## RAGAS metrics (mean)")
         lines.append("")

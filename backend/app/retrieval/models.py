@@ -52,3 +52,11 @@ class RetrievedChunk:
         if self.rrf_score is not None:
             return self.rrf_score
         return self.score
+
+
+@dataclass
+class VectorRecord:
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    content: str
+    score: float
