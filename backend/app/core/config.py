@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://contextforge:contextforge@localhost:5434/contextforge"
     )
+    redis_url: str = "redis://localhost:6379"
+    contextual_retrieval_enabled: bool = False
     # TODO(retrieval-backend): Branch ingest/retrieve on this when Postgres profile ships.
     # Values: qdrant (default) | postgres (pgvector dense + tsvector FTS).
     retrieval_backend: str = "qdrant"

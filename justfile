@@ -2,7 +2,7 @@
 
 # Infra
 up:
-    docker compose up -d postgres qdrant
+    docker compose up -d postgres qdrant redis
 
 down:
     docker compose down
@@ -44,6 +44,10 @@ format:
 
 api-dev:
     cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Async ingestion worker (needs redis + postgres up)
+worker:
+    cd backend && uv run arq app.workers.settings.WorkerSettings
 
 # Frontend
 web-install:

@@ -56,3 +56,14 @@ class LLMProvider(Protocol):
         answer: str,
         contexts: list[str],
     ) -> AnswerValidation: ...
+
+    async def contextualize(
+        self,
+        *,
+        document_title: str,
+        section: str,
+        chunk: str,
+        full_document: str,
+    ) -> str:
+        """Return a short situating context string to prepend to a chunk before embedding."""
+        ...

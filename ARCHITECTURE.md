@@ -50,11 +50,12 @@ contextforge/
 │   │   ├── db/                 # SQLAlchemy base, models, async session
 │   │   ├── graph/              # LangGraph: builder, nodes, state, runner, chunks,
 │   │   │                       #   conversation, checkpointer, pipeline
-│   │   ├── ingestion/          # contextual chunker + ingestion service
+│   │   ├── ingestion/          # document loaders (PDF/MD/TXT) + chunker + ingestion service
 │   │   ├── llm/                # providers/ (base, factory, heuristic, ollama, openai),
 │   │   │                       #   prompts/, models, grading, structured, retrieval_query
-│   │   ├── retrieval/          # embeddings, hybrid, rerank, qdrant_store,
-│   │   │                       #   dedupe, factory, models
+│   │   ├── retrieval/          # embeddings, sparse (FastEmbed BM25), hybrid, rerank,
+│   │   │                       #   qdrant_store, vector_stores, embedders, rerankers,
+│   │   │                       #   protocols, dedupe, factory, models
 │   │   └── schemas/            # base (camelCase alias generator), errors
 │   └── tests/                  # pytest unit suite + `-m eval` golden gate + eval_harness
 ├── eval/                       # RAGAS pipeline + golden set
@@ -84,7 +85,7 @@ contextforge/
 
 | Store | Responsibility |
 |-------|----------------|
-| **PostgreSQL** | Documents, chunks, threads, messages, optional LangGraph checkpoint tables |
+| **PostgreSQL** | Documents, chunks (incl. `page` / `section` columns), threads, messages, optional LangGraph checkpoint tables |
 | **Qdrant** | Hybrid ANN retrieval — named `dense` + `sparse` vectors per point (`chunk_id` as point id) |
 
 `chunks.qdrant_point_id` links relational rows to vector points.
@@ -130,9 +131,12 @@ flowchart TD
 
 Internals not drawn above:
 
-- **retrieve** runs dense + sparse retrieval, RRF fusion (k=60), rerank, and content
-  dedupe inside the one node. For `multi_hop`, it issues a **second** hybrid pass with a
-  `"{retrieval_query} details"` query and merges the de-duplicated results.
+- **retrieve** runs hybrid retrieval, rerank, and content dedupe inside the one node. In
+  production this is **Qdrant-native**: `hybrid_retrieve` → `QdrantStore.hybrid_search`
+  issues dense + sparse prefetch legs and lets Qdrant fuse them server-side via
+  `FusionQuery(RRF)`, returning one fused list. For `multi_hop`, it issues a **second**
+  hybrid pass with a `"{retrieval_query} details"` query and merges the de-duplicated
+  results.
 - **grade_context** sets `abstained=True` when the evidence is too weak; the edge to
   `generate` is unconditional.
 - **generate** calls `select_chunks_for_generation` internally (so selection happens
@@ -143,8 +147,9 @@ Internals not drawn above:
 ## Agent graph nodes
 
 1. **route** — classify the latest message as `direct`, `single_hop_rag`, or `multi_hop`.
-2. **retrieve** — dense (Qdrant) + sparse (BM25) retrieval, RRF fusion, async cross-encoder
-   or lexical rerank, content dedupe. `multi_hop` adds a second hybrid pass and merges.
+2. **retrieve** — Qdrant-native hybrid (named `dense` + `sparse` vectors, server-side
+   `FusionQuery(RRF)`), async cross-encoder or lexical rerank, content dedupe. `multi_hop`
+   adds a second hybrid pass and merges.
 3. **grade_context** — abstain when no reranked chunk meets the backend-specific minimum
    score (`grade_min_score` for lexical rerank, `grade_min_score_cross_encoder` for the
    cross-encoder; both are `Settings` fields, overridable via the `GRADE_MIN_SCORE` /
@@ -170,9 +175,9 @@ before the state leaves the graph and reaches the HTTP layer.
 
 | Field | Stage |
 |-------|-------|
-| `dense_score` | Qdrant cosine similarity |
-| `sparse_score` | BM25 score |
-| `rrf_score` | Reciprocal Rank Fusion |
+| `dense_score` | Qdrant cosine similarity (populated on the client-fused eval path) |
+| `sparse_score` | BM25 score (eval path) |
+| `rrf_score` | Reciprocal Rank Fusion — server-side in Qdrant (prod) or client-side `merge_retrieval_hits` (eval); the production Qdrant-native path maps the single fused score into `rrf_score` |
 | `rerank_score` | Lexical blend or cross-encoder logit |
 | `score` | Whatever the latest stage set (tracks the most recent stage) |
 
@@ -213,6 +218,25 @@ Ollama and OpenAI providers fall back to the heuristic implementation when a liv
 raises or returns an unusable response, so a transient backend failure degrades rather
 than 500s.
 
+## Retrieval provider protocols
+
+The same "one abstraction, settings-selected, in-memory impl for the gate" pattern is
+applied to the retrieval stack. `app/retrieval/protocols.py` defines three
+`@runtime_checkable` `Protocol`s, each with concrete implementations selected by a
+factory:
+
+| Protocol | Implementations (`app/retrieval/…`) | Factory selector |
+|----------|-------------------------------------|------------------|
+| `Embedder` | `HashEmbedder`, `SentenceTransformerEmbedder` (`embedders.py`) | `factory.get_embedder()` (by `EMBEDDING_BACKEND`) |
+| `Reranker` | `LexicalReranker`, `CrossEncoderReranker` (`rerankers.py`) | `factory.get_reranker()` (by `RERANK_BACKEND`) |
+| `VectorStore` | `QdrantStore` (`qdrant_store.py`), `InMemoryVectorStore` (`vector_stores.py`) | `factory.get_vector_store()` (by `RETRIEVAL_BACKEND`) |
+
+`InMemoryVectorStore` is what keeps the eval gate Qdrant-free: it satisfies the same
+`VectorStore` protocol (`ensure_ready`, `upsert_chunks`, `dense_search`) over a plain
+Python list, so offline tests exercise the production seam without a running Qdrant.
+`VectorRecord` lives in `app/retrieval/models.py` so no implementation has to import
+from the Qdrant module to satisfy the protocol.
+
 ## Multi-turn rewrite
 
 `build_retrieval_query` is provider-agnostic. The provider returns a
@@ -222,42 +246,81 @@ follow-up like "so is it mandatory?" is answered against the right topic. Thread
 history is loaded by `graph/conversation.py` (`load_recent_thread_messages`, last
 `CONVERSATION_HISTORY_LIMIT=10` turns) before the graph runs.
 
-## Structural context prefix (chunking)
+## Document loading (ingestion)
 
-`split_text_into_chunks` adds a **structural** context prefix (not the LLM-generated contextual-retrieval technique — that is planned, see the adoption plan):
+Uploaded bytes are routed by file type behind a `DocumentLoader` protocol
+(`app/ingestion/loaders.py`), so adding `.docx`/`.html` later is a one-file change:
+
+| Loader | Handles | Emits |
+|--------|---------|-------|
+| `PdfLoader` | `.pdf` (PyMuPDF / `fitz`) | one `LoadedBlock` per page, `section="Page N"`, `page=N` |
+| `MarkdownLoader` | `.md` / `.markdown` | one block per heading section, `page=None` |
+| `TextLoader` | everything else (default) | a single `Body` block |
+
+`load_document(...)` returns `list[LoadedBlock]`; `chunker.split_blocks_into_chunks`
+splits each block while carrying its `page`/`section` forward. The ingestion service
+persists those onto real `chunks.page` / `chunks.section` columns (migration
+`002_chunk_page_section`) rather than burying them in JSONB, so citations can be
+page-anchored. PDF text extraction runs via `asyncio.to_thread` to stay off the event
+loop. The legacy JSON `POST /v1/documents` path still uses `split_text_into_chunks`
+directly; the eval harness uses it too, so the deterministic gate is unaffected.
+
+## Context prefix (chunking)
+
+`split_text_into_chunks` adds a context prefix that is prepended to the body
+(as `{prefix}\n\n{body}`) before embedding; the BM25 corpus reconstructs the same
+enriched text from stored metadata before indexing.
 
 - Walks Markdown headings to identify sections (heading-less text falls back to a
   `Body` section).
 - Recursive character splitter inside each section
   (`chunk_size=800`, `chunk_overlap=120` chars; separators `["\n\n", "\n", " ", ""]`).
-- Each chunk gets a `context_prefix = "Document: {filename} > Section: {section}"`,
-  which is prepended to the body (as `{prefix}\n\n{body}`) before embedding, and the
-  BM25 corpus reconstructs the same enriched text from stored metadata before indexing.
 
-Storage is split on purpose: the **clean body** is persisted to Postgres
-(`chunks.content`) while the **prefixed text** is what Qdrant embeds and stores in its
-payload. Both retrieval legs therefore score the same enriched document, so they agree
-on what they are scoring.
+The prefix has two modes:
 
-Citation snippets are sliced from the retrieved chunk's content. For a chunk that
-surfaced via the dense (Qdrant) leg that content is the prefixed text, so the
-`Document: … > Section: …` prefix currently appears in those snippets; sparse-only and
-relational representations stay clean. Stripping the prefix from dense citation snippets
-is a known follow-up.
+- **Static structural prefix (default, offline/CI):** `context_prefix =
+  "Document: {filename} > Section: {section}"`. This is the deterministic fallback —
+  it is what the heuristic provider returns from `contextualize`, so `pytest -m eval`
+  produces byte-identical embedded text and stays reproducible.
+- **LLM-generated situating blurb (`CONTEXTUAL_RETRIEVAL_ENABLED=true` + an LLM
+  provider):** the ingest service calls `provider.contextualize(...)` per chunk, and
+  the ollama/openai providers write a real 1-2 sentence blurb that situates the chunk
+  within the whole document (Anthropic's contextual-retrieval technique). On any LLM
+  error the provider degrades back to the static structural prefix. With this flag on
+  and a real provider, the contextual-retrieval label is now earned — it is no longer
+  a purely structural prefix.
+
+Storage is split on purpose: the **prefixed text** is what gets embedded (dense + sparse),
+while the **clean body** is what is persisted everywhere a human reads it — Postgres
+(`chunks.content`) **and** the Qdrant payload `content`. Retrieval still scores the
+enriched text, but citation snippets are sliced from the clean body, so the
+`Document: … > Section: …` prefix never leaks into a citation. `upsert_chunks` enforces
+this by requiring the clean `bodies` as a separate, non-optional argument (no implicit
+fallback to the embedded text — an earlier optional default silently re-opened the leak).
 
 ## Async safety
 
 | Path | How it stays off the event loop |
 |------|--------------------------------|
 | Sentence-Transformer `encode` | `asyncio.to_thread` in `embeddings.embed_texts_async` |
-| Cross-encoder `predict` | `asyncio.to_thread` in `rerank.cross_encoder_rerank_async` |
-| BM25 over chunks | Tiny corpus today; in-memory `BM25Okapi` build per query (demo scope) |
+| FastEmbed BM25 sparse `embed` | `asyncio.to_thread` in `sparse.embed_sparse_async` |
+| Cross-encoder `predict` | `asyncio.to_thread` (+ `asyncio.wait_for` timeout) in `rerank.cross_encoder_rerank_async` |
+| Document loaders (PyMuPDF) | `asyncio.to_thread` in the ingestion service |
 
-The cross-encoder reranker degrades gracefully: if the optional `ml` extra is missing it
-logs `cross_encoder_unavailable` and falls back to the lexical blend. The embedder does
-**not** auto-fall-back — without the `ml` extra it raises unless `EMBEDDING_BACKEND=hash`
-is set explicitly, which selects a deterministic 384-dim hash backend (used by the unit
-tests and dependency-free runs).
+The cross-encoder reranker degrades gracefully on two axes: if the optional `ml` extra is
+missing it logs `cross_encoder_unavailable` and falls back to the lexical blend; and if a
+prediction exceeds `RERANK_TIMEOUT_S` (default `5.0`s; `0` disables) it logs
+`cross_encoder_timeout` and returns the RRF-ordered candidates unreranked — `ranking_score()`
+falls back to `rrf_score`, so a slow/hung reranker degrades latency-gracefully instead of
+stalling the streamed response. The embedder does **not** auto-fall-back — without the `ml`
+extra it raises unless `EMBEDDING_BACKEND=hash` is set explicitly, which selects a
+deterministic 384-dim hash backend (used by the unit tests and dependency-free runs).
+
+> Sparse retrieval is split by path: **production** sparse vectors come from FastEmbed BM25
+> (`Qdrant/bm25`) stored as a named Qdrant vector (fused server-side, see below). The
+> **eval harness** keeps an in-memory `rank-bm25` `BM25Okapi` leg fused client-side via
+> `merge_retrieval_hits`, so the deterministic gate needs no Qdrant. `rank-bm25` is
+> therefore now a test/eval-only dependency.
 
 ## API surface
 
@@ -297,15 +360,20 @@ Two layers:
 
 1. `pytest -q` — unit tests for grading, rerank, chunking, providers, validation,
    streaming, conversation, dedupe, and the golden loader helpers.
-2. `pytest -q -m eval` — end-to-end golden eval (`backend/tests/test_eval.py`) over
-   `eval/golden.jsonl` (20 rows, 3 expect-abstain). Runs the **real** graph against an
-   in-memory corpus + heuristic provider, pinned by the test fixture to the
-   production-recommended stack: `EMBEDDING_BACKEND=sentence-transformers` and
-   `RERANK_BACKEND=cross_encoder` (regardless of the surrounding CI env). Asserts on
-   retrieval recall, citation correctness, and abstain triggers. Off-topic queries
-   abstain because the cross-encoder produces negative logits for unrelated chunks —
-   not because of any token-level heuristic. This is the regression gate that stops the
-   "every test reveals a new bug" pattern.
+2. `pytest -q -m eval` — two end-to-end gates over `eval/golden.jsonl` (20 rows, 3
+   expect-abstain), both running the **real** graph against an in-memory corpus +
+   heuristic provider (no Ollama / OpenAI / Postgres / Qdrant):
+   - `backend/tests/test_eval_golden.py` — pinned by the fixture to the
+     production-recommended stack (`EMBEDDING_BACKEND=sentence-transformers`,
+     `RERANK_BACKEND=cross_encoder`, regardless of the surrounding CI env). Asserts on
+     retrieval recall, citation correctness, and abstain triggers. Off-topic queries
+     abstain because the cross-encoder produces negative logits for unrelated chunks —
+     not because of any token-level heuristic.
+   - `backend/tests/test_eval_ir.py` — hand-rolled retrieval IR metrics (`eval/ir_metrics.py`:
+     `recall_at_k`, `mrr`, `ndcg_at_k`; pure Python, no numpy/C-extension) with quality
+     floors (`recall@5 >= 0.9`, `mrr >= 0.7`, `ndcg@5 >= 0.7`).
+
+   This is the regression gate that stops the "every test reveals a new bug" pattern.
 
 Run modes:
 
@@ -324,8 +392,10 @@ Run modes:
 ## Design tradeoffs
 
 1. **Qdrant + Postgres split** keeps relational state and vector search separate.
-2. **Hybrid retrieval over dense-only**: BM25 catches policy terms and numbers; dense
-   catches paraphrase. RRF avoids brittle score normalization.
+2. **Hybrid retrieval over dense-only**: sparse catches policy terms and numbers; dense
+   catches paraphrase. RRF avoids brittle score normalization. In production the fusion
+   is **server-side in Qdrant** (named `dense` + `sparse` vectors), so there is no
+   per-query full-corpus BM25 rebuild on the read path — it scales past the demo corpus.
 3. **Abstain over forced answer.** If retrieval, grading, or validation signal a weak
    answer, we return the abstain message instead of hallucinating.
 4. **One score, one chunk set.** Generation, citations and validation always agree.
@@ -345,7 +415,7 @@ Run modes:
 |------|-------|
 | API | FastAPI, Pydantic v2, structlog |
 | Orchestration | LangGraph `StateGraph` + optional `AsyncPostgresSaver` |
-| Retrieval | Qdrant, rank-bm25, RRF, optional cross-encoder rerank |
+| Retrieval | Qdrant (named dense+sparse, server-side RRF), FastEmbed BM25 sparse, rank-bm25 (eval only), optional cross-encoder rerank |
 | LLM | Ollama (local), OpenAI + Instructor (structured outputs) |
 | Frontend | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
 | Developer tasks | just |

@@ -1,3 +1,4 @@
+name: contextforge-rag
 services:
   # TODO(retrieval-backend): For RETRIEVAL_BACKEND=postgres, use pgvector-enabled image
   # (e.g. pgvector/pgvector:pg16) and make qdrant service optional via compose profile.
@@ -26,6 +27,16 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: ./backend
@@ -38,9 +49,12 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://contextforge:contextforge@postgres:5432/contextforge
       QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379
       APP_ENV: development
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./sample_corpus:/sample_corpus:ro

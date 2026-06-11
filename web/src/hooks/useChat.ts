@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { flushSync } from "react-dom";
-import type { ThreadDetail } from "../types";
+import type { IngestionJob, ThreadDetail } from "../types";
 import { chatReducer, initialChatState } from "./chatReducer";
 import { streamQuery } from "./useSSE";
 
@@ -125,11 +125,19 @@ export function useChat() {
       });
       return;
     }
-    const document = await response.json();
-    dispatch({
-      type: "upload_status",
-      status: `Ingested ${document.filename} (${document.status})`,
-    });
+    const job = (await response.json()) as IngestionJob;
+    // Poll until terminal state.
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const statusResponse = await fetch(`/v1/documents/jobs/${job.id}`);
+      if (!statusResponse.ok) break;
+      const current = (await statusResponse.json()) as IngestionJob;
+      dispatch({
+        type: "upload_status",
+        status: `${current.filename}: ${current.status} (${current.progress}%)`,
+      });
+      if (current.status === "completed" || current.status === "failed") return;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }, []);
 
   return {

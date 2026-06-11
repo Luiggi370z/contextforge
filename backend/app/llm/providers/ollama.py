@@ -148,3 +148,29 @@ class OllamaProvider:
         except Exception as exc:
             log.warning("ollama_validate_fallback", error=str(exc))
             return heuristic_validate(answer, contexts)
+
+    async def contextualize(
+        self,
+        *,
+        document_title: str,
+        section: str,
+        chunk: str,
+        full_document: str,
+    ) -> str:
+        static = f"Document: {document_title} > Section: {section}"
+        try:
+            blurb = (
+                await ollama_provider.contextualize_chunk(
+                    document_title=document_title,
+                    section=section,
+                    chunk=chunk,
+                    full_document=full_document,
+                    base_url=self.base_url,
+                    model=self.model,
+                )
+                or ""
+            ).strip()
+            return blurb if blurb else static
+        except Exception as exc:  # degrade to structural prefix
+            log.warning("ollama_contextualize_fallback", error=str(exc))
+            return static

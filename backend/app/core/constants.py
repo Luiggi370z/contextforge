@@ -10,6 +10,12 @@ DEFAULT_TEXT_CONTENT_TYPE = "text/plain"
 DOCUMENT_STATUS_PROCESSING = "processing"
 DOCUMENT_STATUS_INGESTED = "ingested"
 
+# Async ingestion job lifecycle (ingestion_jobs table)
+INGESTION_JOB_QUEUED = "queued"
+INGESTION_JOB_PROCESSING = "processing"
+INGESTION_JOB_COMPLETED = "completed"
+INGESTION_JOB_FAILED = "failed"
+
 # Agent routes (graph)
 ROUTE_DIRECT = "direct"
 ROUTE_SINGLE_HOP_RAG = "single_hop_rag"

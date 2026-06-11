@@ -53,3 +53,12 @@ export interface DemoPrompt {
   text: string;
   hint: string;
 }
+
+export interface IngestionJob {
+  id: string;
+  filename: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  progress: number;
+  documentId?: string;
+  error?: string;
+}

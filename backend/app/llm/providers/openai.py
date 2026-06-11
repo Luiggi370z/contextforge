@@ -225,3 +225,41 @@ class OpenAIProvider:
         except Exception as exc:
             log.warning("openai_validate_fallback", error=str(exc))
             return heuristic_validate(answer, contexts)
+
+    async def contextualize(
+        self,
+        *,
+        document_title: str,
+        section: str,
+        chunk: str,
+        full_document: str,
+    ) -> str:
+        static = f"Document: {document_title} > Section: {section}"
+        system_prompt = (
+            "You situate a document chunk within its source document for search "
+            "retrieval. Answer with ONLY a short 1-2 sentence context. No preamble, "
+            "no quotes, no labels."
+        )
+        user_prompt = (
+            "Write a 1-2 sentence context that situates the following chunk within "
+            "the document, to improve search retrieval. Answer with ONLY the "
+            "context.\n\n"
+            f"Document title: {document_title}\n"
+            f"Section: {section}\n\n"
+            f"<document>\n{full_document[:8000]}\n</document>\n\n"
+            f"<chunk>\n{chunk}\n</chunk>"
+        )
+        try:
+            client = _chat_client()
+            completion = await client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            blurb = (completion.choices[0].message.content or "").strip()
+            return blurb if blurb else static
+        except Exception as exc:  # degrade to structural prefix
+            log.warning("openai_contextualize_fallback", error=str(exc))
+            return static

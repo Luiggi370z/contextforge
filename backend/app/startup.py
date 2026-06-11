@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 
 from app.core.config import get_settings
@@ -38,6 +40,21 @@ async def application_lifespan(application: FastAPI) -> AsyncIterator[None]:
         else:
             log.warning("langgraph_checkpointer_unavailable")
         log.info("langgraph_agent_compiled", with_checkpointer=checkpointer is not None)
+
+        try:
+            application.state.arq_pool = await create_pool(
+                RedisSettings.from_dsn(settings.redis_url)
+            )
+            log.info("arq_pool_connected", redis_url=settings.redis_url)
+        except Exception as error:
+            application.state.arq_pool = None
+            log.warning("arq_pool_unavailable", error=str(error))
+
         yield
+
+        arq_pool = getattr(application.state, "arq_pool", None)
+        if arq_pool is not None:
+            await arq_pool.close()
+            log.info("arq_pool_closed")
 
     log.info("application_shutdown")

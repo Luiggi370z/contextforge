@@ -146,3 +146,14 @@ class HeuristicProvider:
         contexts: list[str],
     ) -> AnswerValidation:
         return heuristic_validate(answer, contexts)
+
+    async def contextualize(
+        self,
+        *,
+        document_title: str,
+        section: str,
+        chunk: str,
+        full_document: str,
+    ) -> str:
+        # Deterministic structural prefix — same string the chunker produces today.
+        return f"Document: {document_title} > Section: {section}"

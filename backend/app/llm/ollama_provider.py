@@ -157,6 +157,39 @@ async def condense_retrieval_query(
     )
 
 
+SYSTEM_PROMPT_CONTEXTUALIZE = (
+    "You situate a document chunk within its source document for search retrieval. "
+    "Answer with ONLY a short 1-2 sentence context. No preamble, no quotes, no labels."
+)
+
+
+async def contextualize_chunk(
+    *,
+    document_title: str,
+    section: str,
+    chunk: str,
+    full_document: str,
+    base_url: str,
+    model: str,
+) -> str:
+    """Ask the local model for a 1-2 sentence situating context for a chunk."""
+    user_prompt = (
+        "Write a 1-2 sentence context that situates the following chunk within the "
+        "document, to improve search retrieval. Answer with ONLY the context.\n\n"
+        f"Document title: {document_title}\n"
+        f"Section: {section}\n\n"
+        f"<document>\n{full_document[:8000]}\n</document>\n\n"
+        f"<chunk>\n{chunk}\n</chunk>"
+    )
+    return await _chat_async(
+        base_url=base_url,
+        model=model,
+        system_prompt=SYSTEM_PROMPT_CONTEXTUALIZE,
+        user_prompt=user_prompt,
+        as_json=False,
+    )
+
+
 async def generate_from_context(
     *,
     query: str,
