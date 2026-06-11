@@ -27,8 +27,9 @@ Key properties:
 contextforge/
 ├── ARCHITECTURE.md
 ├── README.md
-├── docker-compose.yml          # Postgres + Qdrant (+ optional full stack)
-├── justfile                    # task runner: infra, tests, eval, lint, web
+├── LOCAL_FIRST.md              # offline / hosted / CI env recipes
+├── docker-compose.yml          # Postgres + Qdrant + Redis (+ optional Langfuse `observability` profile)
+├── justfile                    # task runner: infra, tests, eval, lint, web, worker
 ├── backend/                    # FastAPI + LangGraph service (Python, uv)
 │   ├── Dockerfile
 │   ├── alembic/                # DB migrations
@@ -60,6 +61,7 @@ contextforge/
 │   │   ├── retrieval/          # embeddings, sparse (FastEmbed BM25), bge (local BGE-M3),
 │   │   │                       #   hybrid, rerank, qdrant_store, vector_stores, embedders,
 │   │   │                       #   rerankers, protocols, dedupe, factory, models
+│   │   ├── workers/            # ARQ async-ingestion worker (settings + ingest task)
 │   │   └── schemas/            # base (camelCase alias generator), errors
 │   └── tests/                  # pytest unit suite + `-m eval` golden gate
 ├── eval/                       # dev/CI-only reporters (hit a live API, write reports/):
@@ -86,8 +88,9 @@ contextforge/
 
 | Store | Responsibility |
 |-------|----------------|
-| **PostgreSQL** | Documents, chunks (incl. `page` / `section` columns), threads, messages, optional LangGraph checkpoint tables |
+| **PostgreSQL** | Documents, chunks (incl. `page` / `section` columns), threads, messages, `ingestion_jobs`, `eval_runs` / `eval_results`, optional LangGraph checkpoint tables |
 | **Qdrant** | Hybrid ANN retrieval — named `dense` + `sparse` vectors per point (`chunk_id` as point id) |
+| **Redis** | ARQ task queue for async document ingestion (the upload write path) |
 
 `chunks.qdrant_point_id` links relational rows to vector points.
 
@@ -202,6 +205,8 @@ class LLMProvider(Protocol):
     async def generate(self, *, query, contexts, route, chat_history=None,
                        retrieval_query=None) -> str: ...
     async def validate(self, *, answer, contexts) -> AnswerValidation: ...
+    async def contextualize(self, *, document_title, section, chunk,
+                           full_document) -> str: ...  # situating prefix (contextual retrieval)
 ```
 
 Implementations:
@@ -235,7 +240,7 @@ factory:
 `InMemoryVectorStore` satisfies the same `VectorStore` protocol (`ensure_ready`,
 `upsert_chunks`, `dense_search`) over a plain Python list, demonstrating that the seam
 can run Qdrant-free; a conformance test asserts it implements the protocol. (The
-deterministic eval gate itself keeps its own `tests/eval_harness.InMemoryCorpus` for now
+deterministic eval gate itself keeps its own `app.eval.harness.InMemoryCorpus` for now
 — consolidating the two onto the protocol is tracked with the postgres-backend wave.)
 `VectorRecord` lives in `app/retrieval/models.py` so no implementation has to import
 from the Qdrant module to satisfy the protocol.
@@ -280,6 +285,20 @@ persists those onto real `chunks.page` / `chunks.section` columns (migration
 page-anchored. PDF text extraction runs via `asyncio.to_thread` to stay off the event
 loop. The legacy JSON `POST /v1/documents` path still uses `split_text_into_chunks`
 directly; the eval harness uses it too, so the deterministic gate is unaffected.
+
+## Async ingestion (upload write path)
+
+File uploads do not block the request. `POST /v1/documents/upload` creates an
+`ingestion_jobs` row (migration `003_ingestion_jobs`), enqueues an ARQ task onto Redis,
+and returns `202 Accepted` with the job so the client can poll `GET /v1/documents/jobs/{id}`
+for `queued → processing → completed | failed` (the React app polls and shows progress).
+The worker (`app/workers/`, run with `just worker` → `arq app.workers.settings.WorkerSettings`)
+loads + chunks + embeds + upserts off the request thread and writes the terminal job state.
+
+When Redis is unavailable, `enqueue_upload` degrades to a synchronous in-request ingest
+(`_ingest_upload_into_job`) that performs the same work and records the job outcome, so the
+demo still functions without a running worker. The legacy JSON `POST /v1/documents` path
+stays fully synchronous.
 
 ## Context prefix (chunking)
 
@@ -348,14 +367,17 @@ the wire (see API contract below).
 | `GET /v1/health` | Liveness + `appEnv` |
 | `GET /v1/metrics` | Process-local `queriesTotal` / `ingestsTotal` counters |
 | `GET /v1/documents` | List ingested documents |
-| `POST /v1/documents` | Ingest a document from a JSON body |
-| `POST /v1/documents/upload` | Ingest a document from a multipart upload |
+| `POST /v1/documents` | Ingest a document from a JSON body (synchronous) |
+| `POST /v1/documents/upload` | Enqueue async ingestion of a multipart upload → `202` + an ingestion job |
+| `GET /v1/documents/jobs/{id}` | Poll an ingestion job's status / progress |
 | `GET /v1/threads` | List recent conversation threads |
 | `POST /v1/threads` | Create a thread |
 | `GET /v1/threads/{id}` | Thread + its messages |
 | `DELETE /v1/threads/{id}` | Delete a thread and its messages |
 | `POST /v1/query` | Run a RAG query, return the full JSON answer |
 | `POST /v1/query/stream` | Same query as Server-Sent Events: per-node `status` frames, answer `token` frames, then a `done` frame with the full result |
+| `POST /v1/eval/run` | Run the deterministic golden eval across retrieval configs; persist + return the runs |
+| `GET /v1/eval/runs` | List recent eval runs (IR metrics per config) for the dashboard |
 
 ## Observability
 
@@ -366,9 +388,16 @@ the wire (see API contract below).
 - Every node emits a single structured event with the inputs that matter
   (`route`, `candidates`, `top_score`, `score`, `should_abstain`, `selected`,
   `abstained`, `issues`).
-- There is **no distributed-trace exporter today** — nodes emit structlog events
-  only. Wiring an OpenTelemetry / OpenInference exporter is future work; the
-  per-node structured events are designed to make that drop-in.
+- **Optional Langfuse tracing** wraps the read path at the graph-runner boundary
+  (`run_query` / `stream_query_graph` via `app/core/tracing.py`), **not** inside node
+  bodies — so the "one structured event per node" invariant holds. It is **off by default**
+  (`LANGFUSE_ENABLED=false`) and a zero-overhead no-op when disabled or when the optional
+  `obs` extra / keys are absent. The self-hosted Langfuse v3 stack (web + worker +
+  ClickHouse + MinIO + its own Postgres/Redis) lives behind the `observability` compose
+  profile, so the default `docker compose up` stays lean. The Langfuse v3 SDK ingests over
+  OpenTelemetry, so this also lays the groundwork for a generic OTEL exporter.
+- Per-node span waterfall (route → retrieve → grade → generate → validate) is a noted
+  follow-up; today a single top-level `rag_query` span wraps the run.
 
 ## Evaluation
 
@@ -376,7 +405,7 @@ Two layers:
 
 1. `pytest -q` — unit tests for grading, rerank, chunking, providers, validation,
    streaming, conversation, dedupe, and the golden loader helpers.
-2. `pytest -q -m eval` — two end-to-end gates over `eval/golden.jsonl` (20 rows, 3
+2. `pytest -q -m eval` — two end-to-end gates over `app/eval/golden.jsonl` (20 rows, 3
    expect-abstain), both running the **real** graph against an in-memory corpus +
    heuristic provider (no Ollama / OpenAI / Postgres / Qdrant):
    - `backend/tests/test_eval_golden.py` — pinned by the fixture to the
@@ -385,11 +414,20 @@ Two layers:
      retrieval recall, citation correctness, and abstain triggers. Off-topic queries
      abstain because the cross-encoder produces negative logits for unrelated chunks —
      not because of any token-level heuristic.
-   - `backend/tests/test_eval_ir.py` — hand-rolled retrieval IR metrics (`eval/ir_metrics.py`:
+   - `backend/tests/test_eval_ir.py` — hand-rolled retrieval IR metrics (`app/eval/ir_metrics.py`:
      `recall_at_k`, `mrr`, `ndcg_at_k`; pure Python, no numpy/C-extension) with quality
      floors (`recall@5 >= 0.9`, `mrr >= 0.7`, `ndcg@5 >= 0.7`).
 
    This is the regression gate that stops the "every test reveals a new bug" pattern.
+
+A third layer makes eval a product surface, not just a CI gate. `POST /v1/eval/run`
+runs the same deterministic golden set across retrieval configs (`dense_only`, `hybrid`,
+`hybrid_rerank` — toggling the sparse leg and rerank stage on the in-memory harness) and
+persists each run's IR metrics to `eval_runs` / `eval_results` (migration `004_eval_tables`);
+`GET /v1/eval/runs` feeds the `EvalPanel` config-comparison table in the React app. It
+reuses the shippable `app/eval` toolkit, so a run needs no Qdrant or live API. (Caveat: on
+the 3-document seed corpus the three configs saturate to identical metrics — the
+monotonic-lift story needs a larger / harder corpus or chunk-level relevance labels.)
 
 Run modes:
 
@@ -423,7 +461,8 @@ Run modes:
 - Replacing Qdrant with pgvector (a `postgres` retrieval backend is stubbed but not shipped).
 - Multi-tenant auth, K8s, autoscaling.
 - Semantic cache (GPTCache).
-- A distributed-trace exporter (OpenTelemetry / OpenInference).
+- A generic OpenTelemetry / OpenInference exporter (optional Langfuse tracing ships;
+  a vendor-neutral OTEL exporter does not).
 
 ## Tooling
 
@@ -431,7 +470,10 @@ Run modes:
 |------|-------|
 | API | FastAPI, Pydantic v2, structlog |
 | Orchestration | LangGraph `StateGraph` + optional `AsyncPostgresSaver` |
+| Async ingestion | Redis + ARQ worker (off-thread upload write path) |
 | Retrieval | Qdrant (named dense+sparse, server-side RRF), FastEmbed BM25 sparse, rank-bm25 (eval only), optional cross-encoder rerank |
-| LLM | Ollama (local), OpenAI + Instructor (structured outputs) |
+| Embeddings | sentence-transformers (MiniLM 384), hash (deterministic CI), BGE-M3 via FlagEmbedding (local 1024, dense+sparse from one model) |
+| LLM | Ollama (local; `gemma2` for fully-offline), OpenAI + Instructor (structured outputs) |
+| Observability | structlog + optional Langfuse v3 tracing (`obs` extra, off by default) |
 | Frontend | Vite, React, Tailwind v4, Biome, Vitest, pnpm |
 | Developer tasks | just |
