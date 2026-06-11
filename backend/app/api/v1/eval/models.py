@@ -33,6 +33,6 @@ class EvalResult(Base):
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("eval_runs.id", ondelete="CASCADE"))
     question: Mapped[str] = mapped_column(Text, nullable=False)
     reference_doc: Mapped[str] = mapped_column(String(512), nullable=False)
-    retrieved_docs: Mapped[dict] = mapped_column(JSONB, default=list)
+    retrieved_docs: Mapped[list[str]] = mapped_column(JSONB, default=list)
     abstained: Mapped[bool] = mapped_column(default=False)
     run: Mapped[EvalRun] = relationship(back_populates="results")

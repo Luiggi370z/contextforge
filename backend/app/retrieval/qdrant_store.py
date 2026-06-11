@@ -8,7 +8,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from app.core.config import get_settings
-from app.retrieval.embeddings import _DIM, embed_texts_async
+from app.retrieval.embeddings import embed_texts_async, embedding_dim
 from app.retrieval.models import VectorRecord
 from app.retrieval.sparse import embed_sparse_async
 
@@ -41,7 +41,9 @@ class QdrantStore:
     def __init__(self) -> None:
         settings = get_settings()
         self._client = AsyncQdrantClient(url=settings.qdrant_url)
-        self._collection = settings.qdrant_collection
+        # Collection name carries the dim so different embedders never share a
+        # collection with mismatched vector sizes (switch ⇒ re-seed).
+        self._collection = f"{settings.qdrant_collection}_{settings.embedding_dim}"
 
     async def ensure_ready(self) -> None:
         """VectorStore protocol alias for :meth:`ensure_collection`."""
@@ -55,7 +57,7 @@ class QdrantStore:
                 collection_name=self._collection,
                 vectors_config={
                     settings.dense_vector_name: qmodels.VectorParams(
-                        size=_DIM, distance=qmodels.Distance.COSINE
+                        size=embedding_dim(), distance=qmodels.Distance.COSINE
                     )
                 },
                 sparse_vectors_config={

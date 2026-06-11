@@ -57,9 +57,9 @@ contextforge/
 │   │   ├── ingestion/          # document loaders (PDF/MD/TXT) + chunker + ingestion service
 │   │   ├── llm/                # providers/ (base, factory, heuristic, ollama, openai),
 │   │   │                       #   prompts/, models, grading, structured, retrieval_query
-│   │   ├── retrieval/          # embeddings, sparse (FastEmbed BM25), hybrid, rerank,
-│   │   │                       #   qdrant_store, vector_stores, embedders, rerankers,
-│   │   │                       #   protocols, dedupe, factory, models
+│   │   ├── retrieval/          # embeddings, sparse (FastEmbed BM25), bge (local BGE-M3),
+│   │   │                       #   hybrid, rerank, qdrant_store, vector_stores, embedders,
+│   │   │                       #   rerankers, protocols, dedupe, factory, models
 │   │   └── schemas/            # base (camelCase alias generator), errors
 │   └── tests/                  # pytest unit suite + `-m eval` golden gate
 ├── eval/                       # dev/CI-only reporters (hit a live API, write reports/):
@@ -228,7 +228,7 @@ factory:
 
 | Protocol | Implementations (`app/retrieval/…`) | Factory selector |
 |----------|-------------------------------------|------------------|
-| `Embedder` | `HashEmbedder`, `SentenceTransformerEmbedder` (`embedders.py`) | `factory.get_embedder()` (by `EMBEDDING_BACKEND`) |
+| `Embedder` | `HashEmbedder`, `SentenceTransformerEmbedder`, `BgeM3Embedder` (`embedders.py`) | `factory.get_embedder()` (by `EMBEDDING_BACKEND`) |
 | `Reranker` | `LexicalReranker`, `CrossEncoderReranker` (`rerankers.py`) | `factory.get_reranker()` (by `RERANK_BACKEND`) |
 | `VectorStore` | `QdrantStore` (`qdrant_store.py`), `InMemoryVectorStore` (`vector_stores.py`) | `factory.get_vector_store()` (by `RETRIEVAL_BACKEND`) |
 
@@ -239,6 +239,19 @@ deterministic eval gate itself keeps its own `tests/eval_harness.InMemoryCorpus`
 — consolidating the two onto the protocol is tracked with the postgres-backend wave.)
 `VectorRecord` lives in `app/retrieval/models.py` so no implementation has to import
 from the Qdrant module to satisfy the protocol.
+
+## Local-first mode
+
+The same code runs fully offline on a Mac. `EMBEDDING_BACKEND=bge-m3` selects
+`BgeM3Embedder`, backed by FlagEmbedding's `BGEM3FlagModel` (`app/retrieval/bge.py`) —
+**one** cached model that emits both the dense (1024-dim) and sparse (`lexical_weights`)
+vectors, so both Qdrant named vectors come from a single local load (FastEmbed does not
+ship BGE-M3, hence FlagEmbedding rather than the bm25 fastembed path). Generation runs on
+`gemma2` through the existing Ollama provider (config-only: `LLM_PROVIDER=ollama`,
+`OLLAMA_MODEL=gemma2` — no code change). The Qdrant collection name is dimension-keyed
+(`contextforge_<dim>`), so swapping embedders (384 ⇄ 1024) lands in a fresh collection
+instead of corrupting vectors with a size mismatch — at the cost of a re-seed. See
+[LOCAL_FIRST.md](LOCAL_FIRST.md) for the full offline / hosted / CI env recipes.
 
 ## Multi-turn rewrite
 

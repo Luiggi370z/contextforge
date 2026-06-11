@@ -47,6 +47,10 @@ def _to_tuples(embeddings) -> list[SparseVectorTuple]:  # noqa: ANN001
 def embed_sparse(texts: list[str]) -> list[SparseVectorTuple]:
     if not texts:
         return []
+    if get_settings().embedding_backend == "bge-m3":
+        from app.retrieval.bge import bge_sparse_sync
+
+        return bge_sparse_sync(texts)
     model = _sparse_model()
     return _to_tuples(model.embed(texts))
 
@@ -54,6 +58,10 @@ def embed_sparse(texts: list[str]) -> list[SparseVectorTuple]:
 async def embed_sparse_async(texts: list[str]) -> list[SparseVectorTuple]:
     if not texts:
         return []
+    if get_settings().embedding_backend == "bge-m3":
+        from app.retrieval.bge import bge_sparse_async
+
+        return await bge_sparse_async(texts)
     model = _sparse_model()
     embeddings = await asyncio.to_thread(lambda: list(model.embed(texts)))
     return _to_tuples(embeddings)

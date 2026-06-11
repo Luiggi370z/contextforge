@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_backend: str = "sentence-transformers"
+    # 384 for all-MiniLM-L6-v2; 1024 for BGE-M3. Must match the active embedder.
+    embedding_dim: int = 384
     sparse_embedding_model: str = "Qdrant/bm25"
     # Named-vector keys inside the hybrid Qdrant collection.
     dense_vector_name: str = "dense"

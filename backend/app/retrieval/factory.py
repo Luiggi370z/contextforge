@@ -44,8 +44,13 @@ def get_vector_store() -> VectorStore:
 def get_embedder() -> Embedder:
     """Return the configured embedder implementation."""
     settings = get_settings()
-    if settings.embedding_backend == "hash":
+    backend = settings.embedding_backend
+    if backend == "hash":
         return HashEmbedder()
+    if backend == "bge-m3":
+        from app.retrieval.embedders import BgeM3Embedder
+
+        return BgeM3Embedder()
     return SentenceTransformerEmbedder()
 
 
