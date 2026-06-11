@@ -55,6 +55,8 @@ async def ingest_document_task(
             log.info("ingest_job_complete", job_id=job_id, document_id=str(document.id))
             return str(document.id)
         except Exception as error:
+            # Discard partially-flushed Document/Chunk rows before recording the failure.
+            await session.rollback()
             await repository.update_job(
                 session, job_uuid, status=INGESTION_JOB_FAILED, error=str(error)
             )

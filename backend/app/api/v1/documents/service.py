@@ -166,6 +166,8 @@ class DocumentService:
             )
             await session.commit()
         except Exception as error:
+            # Discard partially-flushed Document/Chunk rows before recording the failure.
+            await session.rollback()
             await self._repository.update_job(
                 session, job.id, status=INGESTION_JOB_FAILED, error=str(error)
             )
