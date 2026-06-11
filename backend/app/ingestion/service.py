@@ -74,7 +74,7 @@ async def ingest_document_blocks(
     """
     settings = get_settings()
     provider = get_llm_provider() if settings.contextual_retrieval_enabled else None
-    full_document = "\n\n".join(block.text for block in blocks)
+    full_document = "\n\n".join(block.text for block in blocks) if provider is not None else ""
 
     doc = Document(
         filename=filename,

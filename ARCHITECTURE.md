@@ -231,9 +231,11 @@ factory:
 | `Reranker` | `LexicalReranker`, `CrossEncoderReranker` (`rerankers.py`) | `factory.get_reranker()` (by `RERANK_BACKEND`) |
 | `VectorStore` | `QdrantStore` (`qdrant_store.py`), `InMemoryVectorStore` (`vector_stores.py`) | `factory.get_vector_store()` (by `RETRIEVAL_BACKEND`) |
 
-`InMemoryVectorStore` is what keeps the eval gate Qdrant-free: it satisfies the same
-`VectorStore` protocol (`ensure_ready`, `upsert_chunks`, `dense_search`) over a plain
-Python list, so offline tests exercise the production seam without a running Qdrant.
+`InMemoryVectorStore` satisfies the same `VectorStore` protocol (`ensure_ready`,
+`upsert_chunks`, `dense_search`) over a plain Python list, demonstrating that the seam
+can run Qdrant-free; a conformance test asserts it implements the protocol. (The
+deterministic eval gate itself keeps its own `tests/eval_harness.InMemoryCorpus` for now
+— consolidating the two onto the protocol is tracked with the postgres-backend wave.)
 `VectorRecord` lives in `app/retrieval/models.py` so no implementation has to import
 from the Qdrant module to satisfy the protocol.
 

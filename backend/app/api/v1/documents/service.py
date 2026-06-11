@@ -108,9 +108,8 @@ class DocumentService:
     ) -> IngestionJob:
         """Create a queued ingestion_jobs row and enqueue the ARQ worker task.
 
-        When no pool is available (Redis down), fall back to a real synchronous
-        ingest so the demo still works: load + ingest the bytes, then mark the
-        job complete with the new document id.
+        When no pool is available (Redis down), ingest synchronously instead so the
+        demo still works without a running worker.
         """
         resolved_name = filename or DEFAULT_UPLOAD_FILENAME
         resolved_type = content_type or DEFAULT_TEXT_CONTENT_TYPE
@@ -127,20 +126,36 @@ class DocumentService:
             )
             return job
 
-        # Synchronous fallback — keeps the demo working without Redis.
+        return await self._ingest_upload_into_job(
+            session, job, filename=resolved_name, raw_bytes=raw_bytes, content_type=resolved_type
+        )
+
+    async def _ingest_upload_into_job(
+        self,
+        session: AsyncSession,
+        job: IngestionJob,
+        *,
+        filename: str,
+        raw_bytes: bytes,
+        content_type: str,
+    ) -> IngestionJob:
+        """Run the shared upload ingest inline, recording its outcome on ``job``.
+
+        This is the Redis-down path: it owns the job-status bookkeeping the ARQ
+        worker would otherwise perform, marking the job completed (with the new
+        document id) or failed.
+
+        Example:
+            >>> # job transitions queued -> completed when ingest succeeds, or
+            >>> # queued -> failed (and re-raises) when it does not.
+        """
         try:
-            blocks = await asyncio.to_thread(
-                load_document,
-                filename=resolved_name,
-                raw_bytes=raw_bytes,
-                content_type=resolved_type,
-            )
-            document = await ingest_document_blocks(
+            document = await self.ingest_upload(
                 session,
                 get_qdrant_store(),
-                filename=resolved_name,
-                blocks=blocks,
-                content_type=resolved_type,
+                filename=filename,
+                raw_bytes=raw_bytes,
+                content_type=content_type,
             )
             await self._repository.update_job(
                 session,
@@ -150,18 +165,12 @@ class DocumentService:
                 document_id=document.id,
             )
             await session.commit()
-            log.info(
-                "document_ingested_sync",
-                document_id=str(document.id),
-                filename=resolved_name,
-            )
         except Exception as error:
             await self._repository.update_job(
                 session, job.id, status=INGESTION_JOB_FAILED, error=str(error)
             )
             await session.commit()
-            log.exception("ingest_sync_failed", filename=resolved_name, error=str(error))
-            raise IngestionError(str(error)) from error
+            raise
         return job
 
     async def get_job(self, session: AsyncSession, job_id: uuid.UUID) -> IngestionJob | None:

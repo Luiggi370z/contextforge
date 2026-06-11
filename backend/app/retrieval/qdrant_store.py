@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import structlog
@@ -9,8 +10,25 @@ from qdrant_client.http import models as qmodels
 from app.core.config import get_settings
 from app.retrieval.embeddings import _DIM, embed_texts_async
 from app.retrieval.models import VectorRecord
+from app.retrieval.sparse import embed_sparse_async
 
 log = structlog.get_logger(__name__)
+
+
+def _records_from_points(points) -> list[VectorRecord]:  # noqa: ANN001 — qdrant ScoredPoint
+    """Map Qdrant scored points into ``VectorRecord``s, reading the chunk payload."""
+    records: list[VectorRecord] = []
+    for point in points:
+        payload = point.payload or {}
+        records.append(
+            VectorRecord(
+                chunk_id=uuid.UUID(str(payload["chunk_id"])),
+                document_id=uuid.UUID(str(payload["document_id"])),
+                content=str(payload.get("content", "")),
+                score=float(point.score or 0.0),
+            )
+        )
+    return records
 
 
 # TODO(retrieval-backend): Keep as Qdrant implementation of a shared VectorStore protocol.
@@ -58,12 +76,11 @@ class QdrantStore:
         ``bodies`` is required (no fallback) — see Wave 0 PR4: an optional default
         silently re-opened the citation-prefix leak.
         """
-        from app.retrieval.sparse import embed_sparse_async
-
         await self.ensure_collection()
         settings = get_settings()
-        dense_vectors = await embed_texts_async(texts)
-        sparse_vectors = await embed_sparse_async(texts)
+        dense_vectors, sparse_vectors = await asyncio.gather(
+            embed_texts_async(texts), embed_sparse_async(texts)
+        )
         points = [
             qmodels.PointStruct(
                 id=str(chunk_id),
@@ -96,18 +113,7 @@ class QdrantStore:
             limit=limit,
             with_payload=True,
         )
-        records: list[VectorRecord] = []
-        for point in results.points:
-            payload = point.payload or {}
-            records.append(
-                VectorRecord(
-                    chunk_id=uuid.UUID(str(payload["chunk_id"])),
-                    document_id=uuid.UUID(str(payload["document_id"])),
-                    content=str(payload.get("content", "")),
-                    score=float(point.score or 0.0),
-                )
-            )
-        return records
+        return _records_from_points(results.points)
 
     async def hybrid_search(self, query: str, limit: int = 20) -> list[VectorRecord]:
         """Server-side RRF over dense + sparse legs; fused score on each record.
@@ -115,12 +121,13 @@ class QdrantStore:
         The fused score is RRF (returned as ``VectorRecord.score``). The hybrid
         layer maps it into ``rrf_score`` so ``ranking_score()`` stays auditable.
         """
-        from app.retrieval.sparse import embed_sparse_async
-
         await self.ensure_collection()
         settings = get_settings()
-        dense_vec = (await embed_texts_async([query]))[0]
-        sparse = (await embed_sparse_async([query]))[0]
+        dense_batch, sparse_batch = await asyncio.gather(
+            embed_texts_async([query]), embed_sparse_async([query])
+        )
+        dense_vec = dense_batch[0]
+        sparse = sparse_batch[0]
         results = await self._client.query_points(
             collection_name=self._collection,
             prefetch=[
@@ -137,18 +144,7 @@ class QdrantStore:
             limit=limit,
             with_payload=True,
         )
-        records: list[VectorRecord] = []
-        for point in results.points:
-            payload = point.payload or {}
-            records.append(
-                VectorRecord(
-                    chunk_id=uuid.UUID(str(payload["chunk_id"])),
-                    document_id=uuid.UUID(str(payload["document_id"])),
-                    content=str(payload.get("content", "")),
-                    score=float(point.score or 0.0),
-                )
-            )
-        return records
+        return _records_from_points(results.points)
 
 
 def get_qdrant_store() -> QdrantStore:
