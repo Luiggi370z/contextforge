@@ -20,17 +20,19 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0",
     "langchain-core>=0.3",
     "langchain-text-splitters>=0.3",
-    "rank-bm25>=0.2",
+    "rank-bm25>=0.2",  # eval harness sparse leg only (prod uses FastEmbed-in-Qdrant)
     "numpy>=1.26",
     "pydantic-ai>=0.2",
     "instructor>=1.0",
     "openai>=1.0",
     "psycopg[binary]>=3.2",
+    "pymupdf>=1.24",
 ]
 
 [project.optional-dependencies]
 ml = [
     "sentence-transformers>=3.0",
+    "fastembed>=0.4",
 ]
 dev = [
     "pytest>=8.0",

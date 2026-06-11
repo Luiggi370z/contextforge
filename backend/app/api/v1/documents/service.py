@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,14 +69,28 @@ class DocumentService:
         raw_bytes: bytes,
         content_type: str | None,
     ) -> Document:
-        """Decode uploaded bytes and ingest as a document."""
-        text = raw_bytes.decode("utf-8", errors="replace")
+        """Load uploaded bytes by type (PDF/MD/TXT) and ingest."""
+        from app.ingestion.loaders import load_document
+        from app.ingestion.service import ingest_document_blocks
+
         resolved_name = filename or DEFAULT_UPLOAD_FILENAME
         resolved_type = content_type or DEFAULT_TEXT_CONTENT_TYPE
-        return await self.ingest_text(
-            session,
-            qdrant,
-            filename=resolved_name,
-            content=text,
-            content_type=resolved_type,
-        )
+        try:
+            blocks = await asyncio.to_thread(
+                load_document,
+                filename=resolved_name,
+                raw_bytes=raw_bytes,
+                content_type=resolved_type,
+            )
+            document = await ingest_document_blocks(
+                session,
+                qdrant,
+                filename=resolved_name,
+                blocks=blocks,
+                content_type=resolved_type,
+            )
+            log.info("document_ingested", document_id=str(document.id), filename=resolved_name)
+            return document
+        except Exception as error:
+            log.exception("ingest_failed", filename=resolved_name, error=str(error))
+            raise IngestionError(str(error)) from error

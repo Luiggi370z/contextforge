@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.constants import CHUNK_OVERLAP_CHARS, CHUNK_SIZE_CHARS
+from app.ingestion.loaders import LoadedBlock
 
 _HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 _DEFAULT_SECTION = "Body"
@@ -101,6 +102,42 @@ def split_text_into_chunks(
                     metadata={
                         "filename": filename,
                         "section": section_title,
+                        "chunk_index": chunk_index,
+                    },
+                )
+            )
+            chunk_index += 1
+    return pieces
+
+
+def split_blocks_into_chunks(
+    blocks: list[LoadedBlock],
+    *,
+    filename: str,
+    chunk_size: int = CHUNK_SIZE_CHARS,
+    chunk_overlap: int = CHUNK_OVERLAP_CHARS,
+) -> list[ChunkPiece]:
+    """Split pre-loaded blocks, carrying each block's page/section into metadata."""
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", " ", ""],
+    )
+    pieces: list[ChunkPiece] = []
+    chunk_index = 0
+    for block in blocks:
+        context_prefix = f"Document: {filename} > Section: {block.section}"
+        for body in splitter.split_text(block.text):
+            if not body.strip():
+                continue
+            pieces.append(
+                ChunkPiece(
+                    body=body,
+                    context_prefix=context_prefix,
+                    metadata={
+                        "filename": filename,
+                        "section": block.section,
+                        "page": block.page,
                         "chunk_index": chunk_index,
                     },
                 )

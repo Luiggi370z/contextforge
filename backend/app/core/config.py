@@ -31,6 +31,10 @@ class Settings(BaseSettings):
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_backend: str = "sentence-transformers"
+    sparse_embedding_model: str = "Qdrant/bm25"
+    # Named-vector keys inside the hybrid Qdrant collection.
+    dense_vector_name: str = "dense"
+    sparse_vector_name: str = "sparse"
     cors_origins: str = "http://localhost:5173"
 
     retrieval_top_k: int = 20

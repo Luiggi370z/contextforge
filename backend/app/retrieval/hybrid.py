@@ -123,15 +123,40 @@ async def bm25_search(
     ]
 
 
+def _fused_to_chunks(records: list[VectorRecord]) -> list[RetrievedChunk]:
+    """Map Qdrant server-side-fused records into RetrievedChunk with rrf_score set."""
+    return [
+        RetrievedChunk(
+            chunk_id=record.chunk_id,
+            document_id=record.document_id,
+            content=record.content,
+            score=record.score,
+            metadata={},
+            dense_score=None,
+            sparse_score=None,
+            rrf_score=record.score,
+            rerank_score=None,
+        )
+        for record in records
+    ]
+
+
+async def hybrid_retrieve_native(
+    qdrant: QdrantStore,
+    query: str,
+) -> list[RetrievedChunk]:
+    """Qdrant-native hybrid: server-side RRF, then rerank + dedupe."""
+    settings = get_settings()
+    records = await qdrant.hybrid_search(query, limit=settings.retrieval_top_k)
+    candidates = _fused_to_chunks(records)
+    ranked = await rerank_candidates_async(query, candidates, top_n=settings.rerank_top_n)
+    return dedupe_chunks_by_content(ranked)
+
+
 async def hybrid_retrieve(
     session: AsyncSession,
     qdrant: QdrantStore,
     query: str,
 ) -> list[RetrievedChunk]:
-    """Dense (Qdrant) + sparse (BM25) retrieval, RRF fusion, then rerank."""
-    settings = get_settings()
-    dense_hits = await qdrant.dense_search(query, limit=settings.retrieval_top_k)
-    sparse_hits = await bm25_search(session, query, limit=settings.retrieval_top_k)
-    candidates = merge_retrieval_hits(dense_hits, sparse_hits)
-    ranked = await rerank_candidates_async(query, candidates, top_n=settings.rerank_top_n)
-    return dedupe_chunks_by_content(ranked)
+    """Hybrid retrieval entry point (now Qdrant-native; ``session`` kept for signature compat)."""
+    return await hybrid_retrieve_native(qdrant, query)

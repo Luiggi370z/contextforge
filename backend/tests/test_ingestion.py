@@ -39,7 +39,7 @@ async def test_ingest_document_text_sets_status_and_upserts_qdrant():
     with patch("app.ingestion.service.Document", return_value=document):
         with patch("app.ingestion.service.Chunk") as chunk_cls:
             chunk_cls.side_effect = lambda **kwargs: MagicMock(id=uuid.uuid4(), **kwargs)
-            with patch("app.ingestion.service.split_text_into_chunks", return_value=pieces):
+            with patch("app.ingestion.service.split_blocks_into_chunks", return_value=pieces):
                 result = await ingest_document_text(
                     session,
                     qdrant,

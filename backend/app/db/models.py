@@ -26,6 +26,8 @@ class Chunk(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
     chunk_index: Mapped[int] = mapped_column(nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    section: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    page: Mapped[int | None] = mapped_column(nullable=True)
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     # TODO(retrieval-backend): add embedding Vector(dimension) via pgvector + GIN tsvector column
     # when RETRIEVAL_BACKEND=postgres; qdrant_point_id optional / unused in that mode.

@@ -85,9 +85,17 @@ contextforge/
 | Store | Responsibility |
 |-------|----------------|
 | **PostgreSQL** | Documents, chunks, threads, messages, optional LangGraph checkpoint tables |
-| **Qdrant** | Dense vector ANN retrieval (`chunk_id` as point id) |
+| **Qdrant** | Hybrid ANN retrieval — named `dense` + `sparse` vectors per point (`chunk_id` as point id) |
 
 `chunks.qdrant_point_id` links relational rows to vector points.
+
+> **Migration note (PR7 — Qdrant-native hybrid).** The Qdrant collection schema
+> changed from a single **anonymous** dense vector to **named** vectors — a `dense`
+> vector (`vectors_config`) plus a `sparse` vector (`sparse_vectors_config`, FastEmbed
+> `Qdrant/bm25`) — so server-side RRF fusion happens inside Qdrant. This is a
+> **breaking** collection-layout change: any collection created before PR7 must be
+> **dropped and re-ingested** (the old anonymous-vector points are incompatible with
+> the named-vector queries). Re-seed with `just seed`.
 
 ## Request flow
 

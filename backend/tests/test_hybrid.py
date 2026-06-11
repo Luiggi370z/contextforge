@@ -65,31 +65,28 @@ async def test_bm25_search_ranks_relevant_chunk():
 
 
 @pytest.mark.asyncio
-async def test_hybrid_retrieve_combines_dense_and_sparse(monkeypatch):
+async def test_hybrid_retrieve_combines_dense_and_sparse():
+    """hybrid_retrieve now delegates to the Qdrant-native server-side RRF path.
+
+    The fused leg comes from ``QdrantStore.hybrid_search`` (named dense+sparse
+    vectors, server-side ``FusionQuery(RRF)``); ``session`` is kept only for
+    signature compatibility with the graph and eval wiring.
+    """
     chunk_id = uuid.uuid4()
     document_id = uuid.uuid4()
-    dense_hit = VectorRecord(
+    fused_hit = VectorRecord(
         chunk_id=chunk_id,
         document_id=document_id,
         content="remote work policy",
         score=0.8,
     )
-    sparse_hit = RetrievedChunk(
-        chunk_id=chunk_id,
-        document_id=document_id,
-        content="remote work policy",
-        score=0.6,
-    )
 
     qdrant = AsyncMock()
-    qdrant.dense_search = AsyncMock(return_value=[dense_hit])
+    qdrant.hybrid_search = AsyncMock(return_value=[fused_hit])
 
     session = AsyncMock()
-    monkeypatch.setattr(
-        "app.retrieval.hybrid.bm25_search",
-        AsyncMock(return_value=[sparse_hit]),
-    )
 
     results = await hybrid_retrieve(session, qdrant, "remote work")
     assert len(results) >= 1
     assert results[0].content == "remote work policy"
+    assert results[0].rrf_score == pytest.approx(0.8)
