@@ -7,8 +7,8 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.documents.models import Document, IngestionJob
 from app.core.constants import DOCUMENT_LIST_LIMIT, INGESTION_JOB_QUEUED
-from app.db.models import Document, IngestionJob
 
 
 class DocumentRepository:

@@ -117,10 +117,9 @@ just web-test      # web: vitest
 
 ```text
 contextforge/
-├── backend/         # FastAPI + graph/retrieval code
+├── backend/         # FastAPI + graph/retrieval; ships app/eval (harness, golden set, corpus)
 ├── web/             # React chat UI
-├── eval/            # golden set + eval scripts
-├── sample_corpus/   # demo policy docs
+├── eval/            # dev-only RAGAS/heuristic reporters (hit live API, write reports/)
 ├── scripts/         # seed + demo helpers
 ├── docs/PLAN.md
 └── justfile

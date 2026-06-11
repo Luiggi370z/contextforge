@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.v1.threads.models import Thread
 from app.core.constants import THREAD_LIST_LIMIT
-from app.db.models import Thread
 
 
 class ThreadRepository:

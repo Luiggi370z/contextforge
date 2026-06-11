@@ -1,4 +1,6 @@
-from app.api.v1.metrics.router import router
-from app.api.v1.metrics.service import increment_ingests, increment_queries
+"""Metrics entity: HTTP router and in-process counters.
 
-__all__ = ["router", "increment_ingests", "increment_queries"]
+This package ``__init__`` is intentionally empty; import the router from
+``app.api.v1.metrics.router`` and the counters from
+``app.api.v1.metrics.service`` directly.
+"""

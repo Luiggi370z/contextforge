@@ -40,14 +40,18 @@ contextforge/
 │   │   ├── main.py             # FastAPI app factory
 │   │   ├── router.py           # mounts the /v1 sub-routers
 │   │   ├── startup.py          # lifespan: Qdrant collection + checkpointer setup
-│   │   ├── api/v1/
-│   │   │   ├── documents/      # ingest + list (router/service/repository/schemas)
+│   │   ├── api/v1/             # one package per entity; each owns its ORM (models.py),
+│   │   │   │                   #   router, service, repository, schemas
+│   │   │   ├── documents/      # ingest + list; models.py = Document/Chunk/IngestionJob
+│   │   │   ├── eval/           # POST /run + GET /runs; models.py = EvalRun/EvalResult
 │   │   │   ├── health/         # GET /v1/health
 │   │   │   ├── metrics/        # process-local query/ingest counters
 │   │   │   ├── query/          # sync + SSE RAG endpoints (+ streaming.py)
-│   │   │   └── threads/        # conversation CRUD + message history
-│   │   ├── core/               # config, constants, logging, middleware, exceptions
-│   │   ├── db/                 # SQLAlchemy base, models, async session
+│   │   │   └── threads/        # conversation CRUD + history; models.py = Thread/Message
+│   │   ├── core/               # config, constants, logging, middleware, exceptions, tracing
+│   │   ├── db/                 # SQLAlchemy base, async session, registry (collects domain models)
+│   │   ├── eval/               # shippable eval toolkit: harness, golden_loader + golden.jsonl,
+│   │   │                       #   ir_metrics, corpus/ — no Qdrant / live API / repo-root deps
 │   │   ├── graph/              # LangGraph: builder, nodes, state, runner, chunks,
 │   │   │                       #   conversation, checkpointer, pipeline
 │   │   ├── ingestion/          # document loaders (PDF/MD/TXT) + chunker + ingestion service
@@ -57,14 +61,11 @@ contextforge/
 │   │   │                       #   qdrant_store, vector_stores, embedders, rerankers,
 │   │   │                       #   protocols, dedupe, factory, models
 │   │   └── schemas/            # base (camelCase alias generator), errors
-│   └── tests/                  # pytest unit suite + `-m eval` golden gate + eval_harness
-├── eval/                       # RAGAS pipeline + golden set
-│   ├── golden.jsonl            # 20 Q/A rows (3 expect-abstain)
-│   ├── golden_loader.py
-│   ├── heuristic_metrics.py
-│   ├── report_writer.py
-│   └── run_ragas.py
-├── sample_corpus/              # seed policy docs (PTO, remote work, security)
+│   └── tests/                  # pytest unit suite + `-m eval` golden gate
+├── eval/                       # dev/CI-only reporters (hit a live API, write reports/):
+│   ├── heuristic_metrics.py    #   lexical fallback scorer
+│   ├── report_writer.py        #   JSON + Markdown report emitter
+│   └── run_ragas.py            #   RAGAS judge runner (imports golden set from app.eval)
 ├── scripts/                    # seed_corpus, demo.sh, dump/wipe db helpers
 ├── docs/                       # design notes, plans, coding standards
 └── web/                        # Vite + React + Tailwind v4 frontend (pnpm)

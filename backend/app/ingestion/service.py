@@ -8,13 +8,13 @@ import uuid
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.documents.models import Chunk, Document
 from app.core.config import get_settings
 from app.core.constants import (
     DEFAULT_MARKDOWN_CONTENT_TYPE,
     DOCUMENT_STATUS_INGESTED,
     DOCUMENT_STATUS_PROCESSING,
 )
-from app.db.models import Chunk, Document
 from app.ingestion.chunker import ChunkPiece, split_blocks_into_chunks
 from app.ingestion.loaders import LoadedBlock, load_document
 from app.llm.providers import LLMProvider, get_llm_provider

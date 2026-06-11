@@ -17,20 +17,14 @@ The assertions cover the three behaviours we keep regressing on:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from app.eval.golden_loader import load_golden
+from app.eval.harness import InMemoryCorpus, hybrid_retrieve_in_memory
 from app.graph.builder import invoke_agent_graph
-from tests.eval_harness import InMemoryCorpus, hybrid_retrieve_in_memory
-
-EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
-
-sys.path.insert(0, str(EVAL_DIR))
-from golden_loader import load_golden  # type: ignore[import-not-found]  # noqa: E402
 
 pytestmark = pytest.mark.eval
 

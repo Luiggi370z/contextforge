@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from golden_loader import GoldenRow
+from app.eval.golden_loader import GoldenRow
 
 
 def _tokenize(text: str) -> set[str]:

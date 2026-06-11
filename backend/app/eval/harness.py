@@ -83,6 +83,13 @@ class InMemoryCorpus:
             self._tokenized.append(stored.embedded_text.lower().split())
         self._bm25 = BM25Okapi(self._tokenized)
 
+    def filename_for(self, chunk_id: uuid.UUID) -> str:
+        """Return the source filename for a chunk id (dense hits carry no metadata)."""
+        for chunk in self._chunks:
+            if chunk.chunk_id == chunk_id:
+                return str(chunk.metadata.get("filename", ""))
+        return ""
+
     def dense_search(self, query: str, *, limit: int) -> list[VectorRecord]:
         query_vec = embed_texts([query])[0]
         scored: list[tuple[_StoredChunk, float]] = [
@@ -129,11 +136,19 @@ async def hybrid_retrieve_in_memory(
     *,
     retrieval_top_k: int = 20,
     rerank_top_n: int = 5,
+    use_sparse: bool = True,
+    use_rerank: bool = True,
 ) -> list[RetrievedChunk]:
-    """Mirror of :func:`app.retrieval.hybrid.hybrid_retrieve` against ``corpus``."""
+    """Mirror of :func:`app.retrieval.hybrid.hybrid_retrieve` against ``corpus``.
+
+    ``use_sparse`` / ``use_rerank`` toggle the sparse leg and the rerank stage so
+    the eval can compare dense-only vs hybrid vs hybrid+rerank configurations.
+    """
     from app.retrieval.hybrid import merge_retrieval_hits
 
     dense_hits = corpus.dense_search(query, limit=retrieval_top_k)
-    sparse_hits = corpus.sparse_search(query, limit=retrieval_top_k)
+    sparse_hits = corpus.sparse_search(query, limit=retrieval_top_k) if use_sparse else []
     candidates = merge_retrieval_hits(dense_hits, sparse_hits)
-    return await rerank_candidates_async(query, candidates, top_n=rerank_top_n)
+    if use_rerank:
+        return await rerank_candidates_async(query, candidates, top_n=rerank_top_n)
+    return candidates[:rerank_top_n]

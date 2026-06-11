@@ -9,8 +9,9 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.documents.models import DocumentListResult
+from app.api.v1.documents.models import Document, IngestionJob
 from app.api.v1.documents.repository import DocumentRepository
+from app.api.v1.documents.schemas import DocumentListResult
 from app.core.constants import (
     DEFAULT_TEXT_CONTENT_TYPE,
     DEFAULT_UPLOAD_FILENAME,
@@ -18,7 +19,6 @@ from app.core.constants import (
     INGESTION_JOB_FAILED,
 )
 from app.core.exceptions import IngestionError
-from app.db.models import Document, IngestionJob
 from app.ingestion.loaders import load_document
 from app.ingestion.service import ingest_document_blocks, ingest_document_text
 from app.retrieval.qdrant_store import QdrantStore, get_qdrant_store

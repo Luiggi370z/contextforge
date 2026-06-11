@@ -1,6 +1,6 @@
-"""Documents entity: HTTP router, service, repository, schemas, and ORM model.
+"""Eval entity: HTTP router, service, repository, schemas, and ORM model.
 
 This package ``__init__`` is intentionally empty: importing the ORM (``.model``)
 from core code must not pull in the router/HTTP stack. Import the router from
-``app.api.v1.documents.router`` directly.
+``app.api.v1.eval.router`` directly.
 """

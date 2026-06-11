@@ -8,8 +8,9 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.query.schemas import Citation, QueryMetadata, QueryRequest, QueryResponse
+from app.api.v1.threads.models import Message, Thread
 from app.core.constants import THREAD_TITLE_MAX_CHARS
-from app.db.models import Message, Thread
+from app.core.tracing import flush_tracer, traced_span
 from app.graph.builder import stream_invoke_agent_graph
 from app.graph.conversation import ChatTurn, load_recent_thread_messages
 from app.graph.pipeline import run_agent_pipeline
@@ -122,26 +123,28 @@ async def stream_query_graph(
 ) -> AsyncIterator[str | QueryResponse]:
     """Yield graph node names as they complete, then the final ``QueryResponse``."""
     thread_id, qdrant, retrieval_query, chat_history = await prepare_query_run(body, session)
-    async for item in stream_invoke_agent_graph(
-        body.message,
-        db=session,
-        qdrant=qdrant,
-        checkpointer=checkpointer,
-        compiled_graph=compiled_graph,
-        thread_id=str(thread_id),
-        retrieval_query=retrieval_query,
-        chat_history=chat_history,
-    ):
-        if isinstance(item, str):
-            yield item
-            continue
-        response = response_from_graph_state(
-            item,
-            thread_id=thread_id,
+    async with traced_span("rag_query_stream", question=body.message, thread_id=str(thread_id)):
+        async for item in stream_invoke_agent_graph(
+            body.message,
+            db=session,
+            qdrant=qdrant,
             checkpointer=checkpointer,
-        )
-        await persist_assistant_message(session, thread_id, response)
-        yield response
+            compiled_graph=compiled_graph,
+            thread_id=str(thread_id),
+            retrieval_query=retrieval_query,
+            chat_history=chat_history,
+        ):
+            if isinstance(item, str):
+                yield item
+                continue
+            response = response_from_graph_state(
+                item,
+                thread_id=thread_id,
+                checkpointer=checkpointer,
+            )
+            await persist_assistant_message(session, thread_id, response)
+            yield response
+    flush_tracer()
 
 
 async def run_query(
@@ -153,16 +156,18 @@ async def run_query(
 ) -> QueryResponse:
     """Persist messages, run LangGraph, and return a grounded response."""
     thread_id, qdrant, retrieval_query, chat_history = await prepare_query_run(body, session)
-    state = await run_agent_pipeline(
-        body.message,
-        session,
-        qdrant,
-        checkpointer=checkpointer,
-        compiled_graph=compiled_graph,
-        thread_id=str(thread_id),
-        retrieval_query=retrieval_query,
-        chat_history=chat_history,
-    )
+    async with traced_span("rag_query", question=body.message, thread_id=str(thread_id)):
+        state = await run_agent_pipeline(
+            body.message,
+            session,
+            qdrant,
+            checkpointer=checkpointer,
+            compiled_graph=compiled_graph,
+            thread_id=str(thread_id),
+            retrieval_query=retrieval_query,
+            chat_history=chat_history,
+        )
+    flush_tracer()
     response = response_from_graph_state(
         state,
         thread_id=thread_id,

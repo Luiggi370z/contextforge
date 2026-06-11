@@ -6,9 +6,9 @@ from rank_bm25 import BM25Okapi
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.documents.models import Chunk
 from app.core.config import get_settings
 from app.core.constants import RRF_RANK_CONSTANT
-from app.db.models import Chunk
 from app.retrieval.dedupe import dedupe_chunks_by_content
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.qdrant_store import QdrantStore, VectorRecord

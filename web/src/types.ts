@@ -62,3 +62,17 @@ export interface IngestionJob {
   documentId?: string;
   error?: string;
 }
+
+export interface EvalRun {
+  id: string;
+  label: string;
+  config: Record<string, unknown>;
+  metrics: Record<string, number>;
+  rowCount: number;
+  createdAt: string;
+}
+
+export interface EvalRunList {
+  items: EvalRun[];
+  total: number;
+}

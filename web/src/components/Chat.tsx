@@ -1,6 +1,7 @@
 import { useChat } from "../hooks/useChat";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { DemoPrompts } from "./DemoPrompts";
+import { EvalPanel } from "./EvalPanel";
 import { MessageList } from "./MessageList";
 
 export function Chat() {
@@ -52,6 +53,8 @@ export function Chat() {
         {chat.uploadStatus && (
           <p className="text-sm text-emerald-400">{chat.uploadStatus}</p>
         )}
+
+        {chat.showDebug && <EvalPanel />}
 
         <DemoPrompts
           disabled={chat.loading}

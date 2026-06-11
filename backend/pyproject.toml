@@ -35,6 +35,9 @@ ml = [
     "sentence-transformers>=3.0",
     "fastembed>=0.4",
 ]
+obs = [
+    "langfuse>=3.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",

@@ -16,9 +16,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from golden_loader import GoldenRow, load_golden
 from heuristic_metrics import score_row, summarize_heuristic
 from report_writer import write_json_report, write_markdown_summary
+
+from app.eval.golden_loader import GoldenRow, load_golden
 
 DEFAULT_API = "http://localhost:8000"
 REPORTS = Path(__file__).resolve().parent.parent / "reports"
@@ -101,7 +102,7 @@ def run_ragas_judge(records: list[dict[str, Any]]) -> dict[str, float]:
 # NOT meaningful. The trustworthy, filename-keyed IR metrics come from the offline
 # tests/test_eval_ir.py gate. This live computation is kept only for payload completeness.
 def run_ir(records: list[dict[str, Any]]) -> dict[str, float]:
-    from ir_metrics import summarize_ir
+    from app.eval.ir_metrics import summarize_ir
 
     rows = [
         {

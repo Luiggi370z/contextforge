@@ -6,9 +6,9 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.threads.models import Thread
 from app.api.v1.threads.repository import ThreadRepository
 from app.core.exceptions import ThreadNotFoundError
-from app.db.models import Thread
 
 
 class ThreadService:

@@ -1,3 +1,5 @@
-from app.api.v1.query.router import router
+"""Query entity: HTTP router, service, schemas, and dependencies.
 
-__all__ = ["router"]
+This package ``__init__`` is intentionally empty; import the router from
+``app.api.v1.query.router`` directly.
+"""

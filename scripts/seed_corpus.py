@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 
-CORPUS_DIR = Path(__file__).resolve().parent.parent / "sample_corpus"
+CORPUS_DIR = Path(__file__).resolve().parent.parent / "backend" / "app" / "eval" / "corpus"
 API = "http://localhost:8000/v1/documents"
 
 
@@ -18,7 +18,7 @@ def main() -> int:
         return 1
     files = sorted(CORPUS_DIR.glob("*.md"))
     if not files:
-        print("No .md files in sample_corpus/", file=sys.stderr)
+        print(f"No .md files in {CORPUS_DIR}", file=sys.stderr)
         return 1
     with httpx.Client(timeout=60.0) as client:
         for path in files:

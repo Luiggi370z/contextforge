@@ -9,18 +9,11 @@ doubles as the "how good is retrieval" report.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-from tests.eval_harness import InMemoryCorpus, hybrid_retrieve_in_memory
-
-EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
-sys.path.insert(0, str(EVAL_DIR))
-
-from golden_loader import load_golden  # type: ignore[import-not-found]  # noqa: E402
-from ir_metrics import summarize_ir  # type: ignore[import-not-found]  # noqa: E402
+from app.eval.golden_loader import load_golden
+from app.eval.harness import InMemoryCorpus, hybrid_retrieve_in_memory
+from app.eval.ir_metrics import summarize_ir
 
 pytestmark = pytest.mark.eval
 

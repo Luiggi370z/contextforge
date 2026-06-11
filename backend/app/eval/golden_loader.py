@@ -1,4 +1,4 @@
-"""Load and validate eval/golden.jsonl rows."""
+"""Load and validate the bundled golden.jsonl rows (ships in the app.eval package)."""
 
 from __future__ import annotations
 

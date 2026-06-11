@@ -8,8 +8,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.threads.models import Message
 from app.core.constants import CONVERSATION_HISTORY_LIMIT
-from app.db.models import Message
 
 
 @dataclass(frozen=True)

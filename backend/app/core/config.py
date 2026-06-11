@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # Cross-encoder logits (ms-marco); negative scores are often irrelevant.
     grade_min_score_cross_encoder: float = 0.0
 
+    langfuse_enabled: bool = False
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str = "http://localhost:3000"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

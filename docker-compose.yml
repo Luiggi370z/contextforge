@@ -37,6 +37,161 @@ services:
       timeout: 3s
       retries: 10
 
+  # ---------------------------------------------------------------------------
+  # OPTIONAL self-hosted Langfuse v3 observability stack.
+  #
+  # The app no-ops without LANGFUSE_ENABLED, so none of this runs by default —
+  # it is gated behind the `observability` compose profile to keep the everyday
+  # `docker compose up` lean. Start it with:
+  #     docker compose --profile observability up -d
+  #
+  # The v3 Python SDK ingests over OpenTelemetry, which requires a v3 server —
+  # hence the full stack (web + worker + ClickHouse + Redis + MinIO + its own
+  # Postgres), all isolated from the app's own postgres/redis. UI: localhost:3000.
+  # LANGFUSE_INIT_* auto-provisions a project with the dev keys below; point the
+  # app at them via LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY in .env. When the
+  # API itself runs in this compose, set LANGFUSE_HOST=http://langfuse-web:3000.
+  # ---------------------------------------------------------------------------
+  langfuse-web:
+    image: langfuse/langfuse:3
+    profiles: ["observability"]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
+      SALT: dev-langfuse-salt-change-me
+      ENCRYPTION_KEY: 95da1f9391e92e07e645ea17128179d3006bdfb63e7146728a90f1afbf1408a3
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: dev-langfuse-secret-change-me
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: langfuse-redis-pw
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      # Auto-provision a project so the demo has deterministic API keys (dev only).
+      LANGFUSE_INIT_ORG_ID: contextforge
+      LANGFUSE_INIT_PROJECT_ID: contextforge
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-contextforge-dev
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-contextforge-dev
+      LANGFUSE_INIT_USER_EMAIL: demo@contextforge.local
+      LANGFUSE_INIT_USER_NAME: Demo
+      LANGFUSE_INIT_USER_PASSWORD: contextforge
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    profiles: ["observability"]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
+      SALT: dev-langfuse-salt-change-me
+      ENCRYPTION_KEY: 95da1f9391e92e07e645ea17128179d3006bdfb63e7146728a90f1afbf1408a3
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: langfuse-redis-pw
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+
+  langfuse-postgres:
+    image: postgres:16-alpine
+    profiles: ["observability"]
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-redis:
+    image: redis:7-alpine
+    profiles: ["observability"]
+    command: ["redis-server", "--requirepass", "langfuse-redis-pw"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "langfuse-redis-pw", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    profiles: ["observability"]
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  minio:
+    image: minio/minio
+    profiles: ["observability"]
+    # `mkdir -p /data/langfuse` creates the required bucket on first boot (MinIO
+    # treats top-level data dirs as buckets in filesystem mode).
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      # Console only; the S3 API (9000) stays on the internal network.
+      - "9091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ./backend
@@ -56,9 +211,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./sample_corpus:/sample_corpus:ro
 
 volumes:
   postgres_data:
   qdrant_data:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_clickhouse_logs:
+  langfuse_minio_data:

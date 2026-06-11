@@ -1,8 +1,8 @@
 import uuid
 from datetime import UTC, datetime
 
+from app.api.v1.threads.models import Message
 from app.api.v1.threads.schemas import message_response_from_orm
-from app.db.models import Message
 
 
 def test_message_response_from_orm_restores_citations():

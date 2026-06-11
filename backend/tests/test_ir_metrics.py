@@ -3,20 +3,10 @@
 from __future__ import annotations
 
 import math
-import sys
-from pathlib import Path
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
-sys.path.insert(0, str(EVAL_DIR))
-
-from ir_metrics import (  # type: ignore[import-not-found]  # noqa: E402
-    mrr,
-    ndcg_at_k,
-    recall_at_k,
-    summarize_ir,
-)
+from app.eval.ir_metrics import mrr, ndcg_at_k, recall_at_k, summarize_ir
 
 
 def approx_exact(value: float):

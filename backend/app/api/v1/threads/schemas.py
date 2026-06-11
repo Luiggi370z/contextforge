@@ -6,7 +6,7 @@ from datetime import datetime
 from pydantic import ConfigDict, Field
 
 from app.api.v1.query.schemas import Citation, QueryMetadata
-from app.db.models import Message, Thread
+from app.api.v1.threads.models import Message, Thread
 from app.schemas.base import BaseRequest, BaseResponse
 
 
