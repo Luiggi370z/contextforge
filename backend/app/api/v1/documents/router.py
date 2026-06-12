@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.documents.dependencies import get_arq_pool, get_document_service, get_qdrant
@@ -30,6 +30,20 @@ async def list_documents(
     result = await document_service.list_documents(session)
     items = [DocumentResponse.model_validate(doc) for doc in result.items]
     return DocumentListResponse(items=items, total=result.total)
+
+
+@router.get("/{document_id}/content")
+async def get_document_content(
+    document_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    document_service: DocumentService = Depends(get_document_service),
+) -> Response:
+    """Serve the original uploaded file (or reassembled chunk text) for preview."""
+    result = await document_service.get_document_content(session, document_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="document not found")
+    content, media_type = result
+    return Response(content=content, media_type=media_type)
 
 
 @router.post("", response_model=DocumentResponse, status_code=201)

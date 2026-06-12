@@ -9,7 +9,6 @@ debug panel and audits can show provenance.
 from __future__ import annotations
 
 import asyncio
-from typing import cast
 
 import structlog
 
@@ -129,13 +128,13 @@ async def cross_encoder_rerank_async(
 def cross_encoder_rerank(
     query: str, candidates: list[RetrievedChunk], top_n: int
 ) -> list[RetrievedChunk]:
-    """Sync wrapper kept for code paths that have not been awaited yet (e.g. eval)."""
-    return cast(
-        list[RetrievedChunk],
-        asyncio.get_event_loop().run_until_complete(
-            cross_encoder_rerank_async(query, candidates, top_n)
-        ),
-    )
+    """Sync wrapper kept for code paths that have not been awaited yet (e.g. eval).
+
+    Uses ``asyncio.run`` rather than ``get_event_loop().run_until_complete`` —
+    the latter raises ``RuntimeError`` on Python 3.12+ when no loop is running
+    (the sync-call case this wrapper exists for).
+    """
+    return asyncio.run(cross_encoder_rerank_async(query, candidates, top_n))
 
 
 def rerank_candidates(

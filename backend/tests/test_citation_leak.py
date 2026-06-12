@@ -40,7 +40,13 @@ async def test_qdrant_payload_stores_clean_body_not_prefixed_text(monkeypatch):
         captured_texts.extend(texts)
         return [[0.0] * 384 for _ in texts]
 
+    async def _fake_sparse(texts):
+        # Sparse vectors are irrelevant to this payload assertion; stub them so the
+        # test needs no fastembed model (keeps the CI `dev` extra free of `ml`).
+        return [([0], [0.0]) for _ in texts]
+
     monkeypatch.setattr("app.retrieval.qdrant_store.embed_texts_async", _fake_embed)
+    monkeypatch.setattr("app.retrieval.qdrant_store.embed_sparse_async", _fake_sparse)
 
     store = QdrantStore()
     fake_client = _FakeAsyncClient()

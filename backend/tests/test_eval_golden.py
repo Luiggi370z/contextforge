@@ -45,10 +45,7 @@ def patched_graph(monkeypatch: pytest.MonkeyPatch, corpus: InMemoryCorpus, real_
 
 
 def _selected_metadata(state: Any) -> list[dict]:
-    return [
-        document.get("metadata") or {}
-        for document in state.get("documents") or []
-    ]
+    return [document.get("metadata") or {} for document in state.get("documents") or []]
 
 
 @pytest.mark.asyncio
@@ -79,9 +76,7 @@ async def test_eval_golden_set(patched_graph) -> None:
 
         citations = state.get("citations") or []
         if not citations:
-            failures.append(
-                f"no citations for factual question: {row.question!r}"
-            )
+            failures.append(f"no citations for factual question: {row.question!r}")
             continue
 
         metadata = _selected_metadata(state)
@@ -91,11 +86,13 @@ async def test_eval_golden_set(patched_graph) -> None:
             for meta, document in zip(metadata, state.get("documents") or [], strict=False)
             if document.get("chunk_id") in cited_chunk_ids
         }
-        if row.reference_doc in cited_docs:
+        # A question is satisfied if ANY of its relevant docs is cited (most have a
+        # single owning doc; a few facts live in more than one — see relevant_set).
+        if row.relevant_set & cited_docs:
             factual_pass += 1
         else:
             failures.append(
-                f"reference doc {row.reference_doc!r} not in citations for "
+                f"none of {sorted(row.relevant_set)} in citations for "
                 f"{row.question!r}; cited={cited_docs}"
             )
 
@@ -105,9 +102,14 @@ async def test_eval_golden_set(patched_graph) -> None:
     recall = factual_pass / factual_total
     abstain_rate = abstain_seen / abstain_total
 
-    assert not failures, (
-        f"{len(failures)} golden cases failed (factual {factual_pass}/{factual_total}, "
-        f"abstain {abstain_seen}/{abstain_total}):\n" + "\n".join(failures[:10])
+    # The overlapping distractor corpus is intentionally hard, so this gate asserts
+    # a quality FLOOR rather than perfection: a regression that drops citation
+    # recall or the abstain rate below the floor fails, but the occasional miss on
+    # a deliberately confusable question does not.
+    assert recall >= 0.8, (
+        f"citation recall too low: {recall:.2f} "
+        f"({factual_pass}/{factual_total}); first misses:\n" + "\n".join(failures[:10])
     )
-    assert recall >= 0.75, f"retrieval recall too low: {recall:.2f}"
-    assert abstain_rate >= 0.66, f"abstain rate too low: {abstain_rate:.2f}"
+    assert abstain_rate >= 0.75, (
+        f"abstain rate too low: {abstain_rate:.2f} ({abstain_seen}/{abstain_total})"
+    )

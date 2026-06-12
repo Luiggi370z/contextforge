@@ -58,11 +58,7 @@ def real_embeddings():
 
 @pytest.fixture(scope="module")
 def corpus(real_embeddings):
-    """Seed an in-memory corpus from the bundled reference Markdown."""
-    from app.eval import CORPUS_DIR
-    from app.eval.harness import InMemoryCorpus
+    """Seed an in-memory corpus from the bundled reference docs (md + pdf + txt)."""
+    from app.eval import build_reference_corpus
 
-    bundle = InMemoryCorpus()
-    for path in sorted(CORPUS_DIR.glob("*.md")):
-        bundle.ingest(filename=path.name, content=path.read_text(encoding="utf-8"))
-    return bundle
+    return build_reference_corpus()

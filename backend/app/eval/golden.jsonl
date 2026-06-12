@@ -1,20 +1,29 @@
 {"question": "How many PTO days do full-time employees accrue per year?", "ground_truth": "20 PTO days per calendar year", "reference_doc": "policy_pto.md"}
-{"question": "Can unused PTO roll over to the next year?", "ground_truth": "Yes, capped at 10 days", "reference_doc": "policy_pto.md"}
-{"question": "What is the minimum notice for PTO requests?", "ground_truth": "At least two weeks notice", "reference_doc": "policy_pto.md"}
-{"question": "How many unused PTO days can roll over if someone has more than 5 days left?", "ground_truth": "Roll over capped at 10 days", "reference_doc": "policy_pto.md"}
-{"question": "Are there exceptions to the two-week PTO notice rule?", "ground_truth": "Emergencies are an exception", "reference_doc": "policy_pto.md"}
-{"question": "How many remote work days are allowed per week?", "ground_truth": "Up to three days per week", "reference_doc": "policy_remote_work.md"}
-{"question": "What are core collaboration hours for remote workers?", "ground_truth": "10:00-16:00 local timezone", "reference_doc": "policy_remote_work.md"}
-{"question": "Do remote workers need manager approval?", "ground_truth": "Yes, manager approval is required", "reference_doc": "policy_remote_work.md"}
-{"question": "What VPN requirement applies to remote workers?", "ground_truth": "Company-approved VPN for internal systems", "reference_doc": "policy_remote_work.md"}
-{"question": "When must remote employees be available for collaboration?", "ground_truth": "Core hours 10:00 to 16:00 local time", "reference_doc": "policy_remote_work.md"}
-{"question": "What encryption is required on company laptops?", "ground_truth": "Full-disk encryption", "reference_doc": "policy_security.md"}
-{"question": "What is required for production system access?", "ground_truth": "MFA and security team approval", "reference_doc": "policy_security.md"}
-{"question": "How quickly must security incidents be reported?", "ground_truth": "Within one hour", "reference_doc": "policy_security.md"}
-{"question": "How do employees report suspected security incidents?", "ground_truth": "Security hotline or ticket queue", "reference_doc": "policy_security.md"}
-{"question": "Is MFA required for production?", "ground_truth": "MFA is required", "reference_doc": "policy_security.md"}
-{"question": "Who approves production access?", "ground_truth": "Security team", "reference_doc": "policy_security.md"}
-{"question": "How many days of PTO can roll over to next year?", "ground_truth": "Up to 10 days", "reference_doc": "policy_pto.md"}
-{"question": "What is the lunar habitat budget for 2099?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
-{"question": "What is the dress code on Fridays?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
-{"question": "How much is the annual learning budget per employee?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
+{"question": "Can unused PTO roll over to the next year, and is there a cap?", "ground_truth": "Yes, rollover is capped at 10 days", "reference_doc": "policy_pto.md"}
+{"question": "What is the minimum notice for PTO requests?", "ground_truth": "At least two weeks notice, except emergencies", "reference_doc": "policy_pto.md"}
+{"question": "How many unused PTO days can roll over if someone has more than 5 days left?", "ground_truth": "Rollover capped at 10 days", "reference_doc": "policy_pto.md"}
+{"question": "How many remote work days are allowed per week?", "ground_truth": "Up to three days per week with manager approval", "reference_doc": "policy_remote_work.md"}
+{"question": "What are the core collaboration hours for remote workers?", "ground_truth": "10:00 to 16:00 in the employee's local timezone", "reference_doc": "policy_remote_work.md"}
+{"question": "Do remote workers need manager approval to work from home?", "ground_truth": "Yes, manager approval is required", "reference_doc": "policy_remote_work.md"}
+{"question": "What VPN requirement applies when accessing internal systems remotely?", "ground_truth": "A company-approved VPN must be used", "reference_doc": "policy_remote_work.md", "relevant_docs": ["policy_remote_work.md", "security_guidelines.pdf"]}
+{"question": "What disk encryption is required on company laptops?", "ground_truth": "Full-disk encryption", "reference_doc": "policy_security.md", "relevant_docs": ["policy_security.md", "security_guidelines.pdf"]}
+{"question": "What is required to access production systems?", "ground_truth": "Multi-factor authentication and security team approval", "reference_doc": "policy_security.md", "relevant_docs": ["policy_security.md", "security_guidelines.pdf"]}
+{"question": "How quickly must a suspected security incident be reported?", "ground_truth": "Within one hour", "reference_doc": "policy_security.md"}
+{"question": "How are documents and data classified for handling?", "ground_truth": "Public, Internal, Confidential, and Restricted", "reference_doc": "security_guidelines.pdf"}
+{"question": "How soon must security updates be installed on devices?", "ground_truth": "Within seven days of release", "reference_doc": "security_guidelines.pdf"}
+{"question": "Should you approve a multi-factor prompt you did not initiate?", "ground_truth": "No — deny and report unsolicited MFA prompts", "reference_doc": "security_guidelines.pdf"}
+{"question": "How many weeks of paid parental leave does Northwind provide?", "ground_truth": "16 weeks of fully paid leave", "reference_doc": "benefits_handbook.pdf"}
+{"question": "How long is the sabbatical and when does an employee qualify?", "ground_truth": "Four weeks of paid leave after five continuous years", "reference_doc": "benefits_handbook.pdf"}
+{"question": "What is the 401(k) employer match?", "ground_truth": "100% of the first 4% of eligible pay, vesting immediately", "reference_doc": "benefits_handbook.pdf"}
+{"question": "How much is the annual learning budget per employee?", "ground_truth": "$1,500 per year", "reference_doc": "benefits_handbook.pdf"}
+{"question": "How many days of bereavement leave are available?", "ground_truth": "Up to 5 paid days", "reference_doc": "benefits_handbook.pdf"}
+{"question": "How much tuition reimbursement is available per year?", "ground_truth": "Up to $5,000 per year for approved programs", "reference_doc": "benefits_handbook.pdf"}
+{"question": "What is the meal per-diem for a standard domestic city?", "ground_truth": "$65 per day", "reference_doc": "expense_policy.pdf"}
+{"question": "Who must approve a business expense over $5,000?", "ground_truth": "The department head and Finance", "reference_doc": "expense_policy.pdf"}
+{"question": "How much is the one-time home-office setup stipend?", "ground_truth": "Up to $750 with manager approval", "reference_doc": "expense_policy.pdf"}
+{"question": "What is the lodging cap per night in a high-cost domestic city?", "ground_truth": "$320 per night", "reference_doc": "expense_policy.pdf"}
+{"question": "Within how many days must expenses be submitted?", "ground_truth": "Within 30 days of incurring them", "reference_doc": "expense_policy.pdf"}
+{"question": "What is the lunar habitat construction budget for 2099?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
+{"question": "What is the company dress code on Fridays?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
+{"question": "Does Northwind offer pet insurance, and how much does it cost?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}
+{"question": "What is the annual budget for the company softball team?", "ground_truth": "Not documented in the corpus", "reference_doc": "none", "expect_abstain": true}

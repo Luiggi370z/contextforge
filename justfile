@@ -16,6 +16,18 @@ migrate:
 seed:
     cd backend && uv run python ../scripts/seed_corpus.py
 
+# Dump documents + chunks (Postgres) joined with embeddings (Qdrant) -> scripts/db_dump.json
+dump *args:
+    cd backend && uv run python ../scripts/dump_db.py {{args}}
+
+# Wipe the corpus from Postgres + Qdrant. Pass --include-threads / --yes via `just wipe --yes`
+wipe *args:
+    cd backend && uv run python ../scripts/wipe_db.py {{args}}
+
+# Full reset: truncate EVERY Postgres table (keeps schema) + drop EVERY Qdrant collection
+nuke *args:
+    cd backend && uv run python ../scripts/wipe_db.py --all {{args}}
+
 demo:
     bash scripts/demo.sh
 

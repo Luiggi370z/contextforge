@@ -66,11 +66,13 @@ async def ingest_document_blocks(
     filename: str,
     blocks: list[LoadedBlock],
     content_type: str,
+    raw_bytes: bytes,
 ) -> Document:
     """Persist a document + chunks + vectors from pre-loaded blocks.
 
     Carries each block's page/section through the chunker into the new
-    ``chunks.page`` / ``chunks.section`` columns.
+    ``chunks.page`` / ``chunks.section`` columns. ``raw_bytes`` (the original
+    upload) is stored on the document row to power the file-preview UI.
     """
     settings = get_settings()
     provider = get_llm_provider() if settings.contextual_retrieval_enabled else None
@@ -80,6 +82,8 @@ async def ingest_document_blocks(
         filename=filename,
         content_type=content_type,
         status=DOCUMENT_STATUS_PROCESSING,
+        size_bytes=len(raw_bytes),
+        raw_bytes=raw_bytes,
     )
     db.add(doc)
     await db.flush()
@@ -128,12 +132,13 @@ async def ingest_document_text(
     content_type: str = DEFAULT_MARKDOWN_CONTENT_TYPE,
 ) -> Document:
     """Back-compat text ingest: wrap content in markdown-derived blocks."""
+    encoded = content.encode("utf-8")
     blocks = await asyncio.to_thread(
         load_document,
         filename=filename,
-        raw_bytes=content.encode("utf-8"),
+        raw_bytes=encoded,
         content_type=content_type,
     )
     return await ingest_document_blocks(
-        db, qdrant, filename=filename, blocks=blocks, content_type=content_type
+        db, qdrant, filename=filename, blocks=blocks, content_type=content_type, raw_bytes=encoded
     )

@@ -24,6 +24,7 @@ class DocumentResponse(BaseResponse):
     filename: str
     content_type: str
     status: str
+    size_bytes: int | None = None
     created_at: datetime
 
 

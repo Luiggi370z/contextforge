@@ -30,7 +30,11 @@ describe("App", () => {
 
   it("renders conversation sidebar navigation", () => {
     render(<App />);
-    expect(screen.getByRole("navigation", { name: "Conversations" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New conversation" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Conversations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "New conversation" }),
+    ).toBeInTheDocument();
   });
 });

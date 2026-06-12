@@ -10,7 +10,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.eval.repository import EvalRepository
-from app.eval import CORPUS_DIR
+from app.eval import build_reference_corpus
 from app.eval.golden_loader import load_golden
 from app.eval.harness import InMemoryCorpus, hybrid_retrieve_in_memory
 from app.eval.ir_metrics import summarize_ir
@@ -42,7 +42,7 @@ class EvalService:
                     corpus, row.question, use_sparse=use_sparse, use_rerank=use_rerank
                 )
                 retrieved_docs = [corpus.filename_for(chunk.chunk_id) for chunk in chunks]
-                ir_rows.append({"retrieved": retrieved_docs, "relevant": {row.reference_doc}})
+                ir_rows.append({"retrieved": retrieved_docs, "relevant": row.relevant_set})
                 persisted.append(
                     {
                         "question": row.question,
@@ -66,11 +66,8 @@ class EvalService:
         return created
 
     def _build_corpus(self) -> InMemoryCorpus:
-        """Ingest the bundled reference corpus into a fresh in-memory corpus."""
-        corpus = InMemoryCorpus()
-        for path in sorted(CORPUS_DIR.glob("*.md")):
-            corpus.ingest(filename=path.name, content=path.read_text(encoding="utf-8"))
-        return corpus
+        """Ingest the bundled reference corpus (md + pdf + txt) into a fresh corpus."""
+        return build_reference_corpus()
 
     async def list_runs(self, session: AsyncSession):
         items = await self._repository.list_runs(session)

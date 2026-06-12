@@ -54,6 +54,20 @@ export interface DemoPrompt {
   hint: string;
 }
 
+export interface DocumentInfo {
+  id: string;
+  filename: string;
+  contentType: string;
+  status: string;
+  sizeBytes?: number | null;
+  createdAt: string;
+}
+
+export interface DocumentList {
+  items: DocumentInfo[];
+  total: number;
+}
+
 export interface IngestionJob {
   id: string;
   filename: string;

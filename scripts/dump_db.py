@@ -104,13 +104,15 @@ async def _load_qdrant() -> dict[str, dict[str, Any]]:
     settings = get_settings()
     client = AsyncQdrantClient(url=settings.qdrant_url)
     try:
-        if not await client.collection_exists(settings.qdrant_collection):
+        # Match QdrantStore's naming: base name suffixed with the embedding dim.
+        collection = f"{settings.qdrant_collection}_{settings.embedding_dim}"
+        if not await client.collection_exists(collection):
             return {}
         out: dict[str, dict[str, Any]] = {}
         offset: Any = None
         while True:
             points, offset = await client.scroll(
-                collection_name=settings.qdrant_collection,
+                collection_name=collection,
                 limit=256,
                 offset=offset,
                 with_payload=True,
@@ -195,7 +197,7 @@ def _build_dump(
     summary = {
         "database_url": settings.database_url.split("@")[-1],  # drop user:pass
         "qdrant_url": settings.qdrant_url,
-        "qdrant_collection": settings.qdrant_collection,
+        "qdrant_collection": f"{settings.qdrant_collection}_{settings.embedding_dim}",
         "embedding_model": settings.embedding_model,
         "embedding_backend": settings.embedding_backend,
         "document_count": len(out_documents),

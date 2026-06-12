@@ -28,18 +28,12 @@ export function Chat() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-1.5 text-sm hover:bg-slate-800">
-              Upload
-              <input
-                type="file"
-                accept=".md,.txt,.markdown"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) chat.uploadDocument(file);
-                }}
-              />
-            </label>
+            <a
+              href="#/documents"
+              className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm hover:bg-slate-800"
+            >
+              Documents
+            </a>
             <button
               type="button"
               onClick={() => chat.setShowDebug((value) => !value)}
@@ -49,10 +43,6 @@ export function Chat() {
             </button>
           </div>
         </header>
-
-        {chat.uploadStatus && (
-          <p className="text-sm text-emerald-400">{chat.uploadStatus}</p>
-        )}
 
         {chat.showDebug && <EvalPanel />}
 

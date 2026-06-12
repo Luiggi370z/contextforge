@@ -1,0 +1,2 @@
+# Treat PDFs as binary so git never applies EOL/text normalization to them.
+*.pdf binary

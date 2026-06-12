@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { flushSync } from "react-dom";
-import type { IngestionJob, ThreadDetail } from "../types";
+import type { ThreadDetail } from "../types";
 import { chatReducer, initialChatState } from "./chatReducer";
 import { streamQuery } from "./useSSE";
 
@@ -110,36 +110,6 @@ export function useChat() {
     [state.loading, state.threadId, loadThreads],
   );
 
-  const uploadDocument = useCallback(async (file: File) => {
-    dispatch({ type: "upload_status", status: `Uploading ${file.name}...` });
-    const form = new FormData();
-    form.append("file", file);
-    const response = await fetch("/v1/documents/upload", {
-      method: "POST",
-      body: form,
-    });
-    if (!response.ok) {
-      dispatch({
-        type: "upload_status",
-        status: `Upload failed: ${response.status}`,
-      });
-      return;
-    }
-    const job = (await response.json()) as IngestionJob;
-    // Poll until terminal state.
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const statusResponse = await fetch(`/v1/documents/jobs/${job.id}`);
-      if (!statusResponse.ok) break;
-      const current = (await statusResponse.json()) as IngestionJob;
-      dispatch({
-        type: "upload_status",
-        status: `${current.filename}: ${current.status} (${current.progress}%)`,
-      });
-      if (current.status === "completed" || current.status === "failed") return;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }, []);
-
   return {
     threads: state.threads,
     threadId: state.threadId,
@@ -149,7 +119,6 @@ export function useChat() {
     loading: state.loading,
     showDebug,
     setShowDebug,
-    uploadStatus: state.uploadStatus,
     streamStage: state.streamStage,
     threadLoading: state.threadLoading,
     deletingThreadId,
@@ -158,6 +127,5 @@ export function useChat() {
     startNewThread,
     deleteThread,
     sendMessage,
-    uploadDocument,
   };
 }

@@ -44,7 +44,9 @@ describe("ConversationSidebar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete PTO question" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete PTO question" }),
+    );
     expect(onDeleteThread).toHaveBeenCalledWith(threads[0].id);
     expect(onSelectThread).not.toHaveBeenCalled();
   });

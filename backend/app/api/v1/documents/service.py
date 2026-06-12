@@ -41,6 +41,15 @@ class DocumentService:
         total = await self._repository.count(session)
         return DocumentListResult(items=items, total=total)
 
+    async def get_document_content(
+        self, session: AsyncSession, document_id: uuid.UUID
+    ) -> tuple[bytes, str] | None:
+        """Return ``(bytes, media_type)`` of the original upload for preview, or ``None``."""
+        document = await self._repository.get_by_id(session, document_id)
+        if document is None:
+            return None
+        return document.raw_bytes, document.content_type
+
     async def ingest_text(
         self,
         session: AsyncSession,
@@ -90,6 +99,7 @@ class DocumentService:
                 filename=resolved_name,
                 blocks=blocks,
                 content_type=resolved_type,
+                raw_bytes=raw_bytes,
             )
             log.info("document_ingested", document_id=str(document.id), filename=resolved_name)
             return document

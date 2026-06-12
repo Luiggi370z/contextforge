@@ -42,7 +42,12 @@ async def ingest_document_task(
                 filename=filename, raw_bytes=raw_bytes, content_type=content_type
             )
             document = await ingest_document_blocks(
-                session, qdrant, filename=filename, blocks=blocks, content_type=content_type
+                session,
+                qdrant,
+                filename=filename,
+                blocks=blocks,
+                content_type=content_type,
+                raw_bytes=raw_bytes,
             )
             await repository.update_job(
                 session,

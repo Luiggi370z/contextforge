@@ -52,8 +52,12 @@ describe("streamQuery", () => {
     const result = await streamQuery(
       "PTO?",
       null,
-      (chunk) => tokens.push(chunk),
-      (stage) => stages.push(stage),
+      (chunk) => {
+        tokens.push(chunk);
+      },
+      (stage) => {
+        stages.push(stage);
+      },
     );
 
     expect(tokens.join("")).toBe("full answer");

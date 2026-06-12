@@ -15,29 +15,47 @@ import math
 from collections.abc import Iterable, Sequence
 
 
+def _unique_by_first_occurrence(retrieved: Sequence[str]) -> list[str]:
+    """Collapse a ranked list to unique ids at their best (first) rank.
+
+    Retrieval is chunk-level but relevance here is document-level, so the same
+    doc id can appear several times (one per chunk). Aggregating to the doc's
+    best rank is the standard passage→document step; without it ``ndcg`` would
+    accumulate gain at every duplicate and exceed its IDCG (a score > 1.0).
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for doc_id in retrieved:
+        if doc_id not in seen:
+            seen.add(doc_id)
+            ordered.append(doc_id)
+    return ordered
+
+
 def recall_at_k(retrieved: Sequence[str], relevant: set[str], k: int) -> float:
-    """Fraction of relevant ids that appear in the top-``k`` retrieved ids."""
+    """Fraction of relevant ids that appear in the top-``k`` distinct retrieved ids."""
     if not relevant:
         return 0.0
-    topk = set(retrieved[:k])
+    topk = set(_unique_by_first_occurrence(retrieved)[:k])
     hits = len(topk & relevant)
     return hits / len(relevant)
 
 
 def mrr(retrieved: Sequence[str], relevant: set[str]) -> float:
     """Reciprocal rank of the first relevant id (0.0 if none retrieved)."""
-    for rank, doc_id in enumerate(retrieved, start=1):
+    for rank, doc_id in enumerate(_unique_by_first_occurrence(retrieved), start=1):
         if doc_id in relevant:
             return 1.0 / rank
     return 0.0
 
 
 def ndcg_at_k(retrieved: Sequence[str], relevant: set[str], k: int) -> float:
-    """Binary-gain nDCG@k. IDCG is computed for the ideal binary ranking."""
+    """Binary-gain nDCG@k over distinct docs. IDCG is the ideal binary ranking."""
     if not relevant:
         return 0.0
+    ranked = _unique_by_first_occurrence(retrieved)
     dcg = 0.0
-    for index, doc_id in enumerate(retrieved[:k]):
+    for index, doc_id in enumerate(ranked[:k]):
         if doc_id in relevant:
             dcg += 1.0 / math.log2(index + 2)
     ideal_hits = min(len(relevant), k)

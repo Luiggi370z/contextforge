@@ -9,7 +9,6 @@ export interface ChatState {
   loading: boolean;
   streamStage: string | null;
   threadLoading: boolean;
-  uploadStatus: string | null;
 }
 
 export const initialChatState: ChatState = {
@@ -20,7 +19,6 @@ export const initialChatState: ChatState = {
   loading: false,
   streamStage: null,
   threadLoading: false,
-  uploadStatus: null,
 };
 
 export type ChatAction =
@@ -42,8 +40,7 @@ export type ChatAction =
       citations: Citation[];
     }
   | { type: "send_error"; message: string }
-  | { type: "send_end" }
-  | { type: "upload_status"; status: string | null };
+  | { type: "send_end" };
 
 function updateLastAssistant(
   messages: ChatMessage[],
@@ -82,7 +79,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const wasActive = state.threadId === action.threadId;
       return {
         ...state,
-        threads: state.threads.filter((thread) => thread.id !== action.threadId),
+        threads: state.threads.filter(
+          (thread) => thread.id !== action.threadId,
+        ),
         threadId: wasActive ? null : state.threadId,
         messages: wasActive ? [] : state.messages,
         threadLoading: false,
@@ -123,8 +122,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     case "send_end":
       return { ...state, loading: false, streamStage: null };
-    case "upload_status":
-      return { ...state, uploadStatus: action.status };
     default:
       return state;
   }

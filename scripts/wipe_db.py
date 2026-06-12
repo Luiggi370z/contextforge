@@ -7,11 +7,17 @@ configured Qdrant collection so the next ingest starts from an empty store.
 By default ``threads`` / ``messages`` are preserved — pass ``--include-threads``
 to also drop conversation history.
 
+Pass ``--all`` for a full reset: truncates EVERY Postgres table (except the
+Alembic version table, so the schema/migrations survive) and drops EVERY Qdrant
+collection (covering every dimension-keyed ``contextforge_<dim>`` collection),
+not just the configured one.
+
 Usage:
 
   uv run python ../scripts/wipe_db.py                  # corpus only (asks first)
   uv run python ../scripts/wipe_db.py --yes            # corpus only, skip prompt
   uv run python ../scripts/wipe_db.py --include-threads --yes
+  uv run python ../scripts/wipe_db.py --all --yes      # nuke everything in both DBs
 """
 
 from __future__ import annotations
@@ -57,16 +63,61 @@ async def _wipe_postgres(*, include_threads: bool) -> tuple[int, int, int, int]:
         await engine.dispose()
 
 
+def _qdrant_collection_name(settings) -> str:
+    """Match QdrantStore's naming: base name suffixed with the embedding dim."""
+    return f"{settings.qdrant_collection}_{settings.embedding_dim}"
+
+
 async def _wipe_qdrant() -> tuple[bool, int]:
+    settings = get_settings()
+    collection = _qdrant_collection_name(settings)
+    client = AsyncQdrantClient(url=settings.qdrant_url)
+    try:
+        if not await client.collection_exists(collection):
+            return False, 0
+        info = await client.get_collection(collection)
+        point_count = int(info.points_count or 0)
+        await client.delete_collection(collection)
+        return True, point_count
+    finally:
+        await client.close()
+
+
+# Keep migration state so the schema survives a full reset (re-seed, not re-migrate).
+_PRESERVE_TABLES = frozenset({"alembic_version"})
+
+
+async def _wipe_all_postgres() -> list[str]:
+    """Truncate every table except the Alembic version table; return wiped names."""
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url, future=True)
+    try:
+        async with engine.begin() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename FROM pg_tables "
+                    "WHERE schemaname = current_schema() ORDER BY tablename"
+                )
+            )
+            tables = [name for (name,) in rows if name not in _PRESERVE_TABLES]
+            if tables:
+                quoted = ", ".join(f'"{name}"' for name in tables)
+                await conn.execute(text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE"))
+            return tables
+    finally:
+        await engine.dispose()
+
+
+async def _wipe_all_qdrant() -> list[str]:
+    """Drop every Qdrant collection (all dimension-keyed ones); return dropped names."""
     settings = get_settings()
     client = AsyncQdrantClient(url=settings.qdrant_url)
     try:
-        if not await client.collection_exists(settings.qdrant_collection):
-            return False, 0
-        info = await client.get_collection(settings.qdrant_collection)
-        point_count = int(info.points_count or 0)
-        await client.delete_collection(settings.qdrant_collection)
-        return True, point_count
+        collections = await client.get_collections()
+        names = [c.name for c in collections.collections]
+        for name in names:
+            await client.delete_collection(name)
+        return names
     finally:
         await client.close()
 
@@ -79,6 +130,13 @@ async def _main() -> int:
         help="Also wipe ``threads`` and ``messages`` (conversation history).",
     )
     parser.add_argument(
+        "--all",
+        dest="wipe_all",
+        action="store_true",
+        help="Full reset: truncate EVERY Postgres table (keeps Alembic version) "
+        "and drop EVERY Qdrant collection.",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Skip the confirmation prompt (use in scripts / CI).",
@@ -86,18 +144,30 @@ async def _main() -> int:
     args = parser.parse_args()
 
     settings = get_settings()
-    target = "documents + chunks"
-    if args.include_threads:
-        target += " + threads + messages"
-    print(f"About to wipe {target} from Postgres and drop Qdrant collection.")
+    if args.wipe_all:
+        target = "EVERYTHING (all Postgres tables + all Qdrant collections)"
+    else:
+        target = "documents + chunks"
+        if args.include_threads:
+            target += " + threads + messages"
+    print(f"About to wipe {target}.")
     print(f"  postgres : {settings.database_url.split('@')[-1]}")
-    print(f"  qdrant   : {settings.qdrant_url}  (collection={settings.qdrant_collection})")
+    print(f"  qdrant   : {settings.qdrant_url}")
 
     if not args.yes:
         confirmation = input("Type 'wipe' to confirm: ").strip().lower()
         if confirmation != "wipe":
             print("Aborted.")
             return 1
+
+    if args.wipe_all:
+        tables = await _wipe_all_postgres()
+        collections = await _wipe_all_qdrant()
+        print()
+        print(f"Postgres: truncated {len(tables)} table(s): {', '.join(tables) or '(none)'}")
+        dropped = ", ".join(collections) or "(none)"
+        print(f"Qdrant: dropped {len(collections)} collection(s): {dropped}")
+        return 0
 
     docs, chunks, threads, messages = await _wipe_postgres(include_threads=args.include_threads)
     existed, points = await _wipe_qdrant()
@@ -111,9 +181,9 @@ async def _main() -> int:
         print(f"  messages removed : {messages}")
     print("Qdrant:")
     if existed:
-        print(f"  collection '{settings.qdrant_collection}' dropped ({points} points)")
+        print(f"  collection '{_qdrant_collection_name(settings)}' dropped ({points} points)")
     else:
-        print(f"  collection '{settings.qdrant_collection}' did not exist")
+        print(f"  collection '{_qdrant_collection_name(settings)}' did not exist")
     return 0
 
 

@@ -16,10 +16,12 @@ from __future__ import annotations
 import math
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from rank_bm25 import BM25Okapi
 
-from app.ingestion.chunker import ChunkPiece, split_text_into_chunks
+from app.ingestion.chunker import ChunkPiece, split_blocks_into_chunks, split_text_into_chunks
+from app.ingestion.loaders import load_document
 from app.retrieval.embeddings import embed_texts
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.qdrant_store import VectorRecord
@@ -62,8 +64,29 @@ class InMemoryCorpus:
         self._tokenized: list[list[str]] = []
 
     def ingest(self, *, filename: str, content: str) -> None:
+        """Ingest a Markdown/plain-text string (heading-aware chunking)."""
+        self._ingest_pieces(filename, split_text_into_chunks(content, filename=filename))
+
+    def ingest_file(self, path: Path) -> None:
+        """Ingest a corpus file through the production loader path (PDF/txt/md alike).
+
+        PDFs and plain text route through :func:`load_document` +
+        :func:`split_blocks_into_chunks`, the exact path a real upload takes, so
+        the eval corpus exercises the same parsing as production rather than a
+        Markdown-only shortcut.
+        """
+        suffix = path.suffix.lower()
+        if suffix in {".md", ".markdown"}:
+            self.ingest(filename=path.name, content=path.read_text(encoding="utf-8"))
+            return
+        content_type = "application/pdf" if suffix == ".pdf" else "text/plain"
+        blocks = load_document(
+            filename=path.name, raw_bytes=path.read_bytes(), content_type=content_type
+        )
+        self._ingest_pieces(path.name, split_blocks_into_chunks(blocks, filename=path.name))
+
+    def _ingest_pieces(self, filename: str, pieces: list[ChunkPiece]) -> None:
         document_id = uuid.uuid4()
-        pieces: list[ChunkPiece] = split_text_into_chunks(content, filename=filename)
         if not pieces:
             return
         new_embeddings = embed_texts([piece.content for piece in pieces])

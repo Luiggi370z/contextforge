@@ -49,12 +49,11 @@ export function ConversationSidebar({
         </button>
       </div>
 
-      <nav
-        className="flex-1 overflow-y-auto p-2"
-        aria-label="Conversations"
-      >
+      <nav className="flex-1 overflow-y-auto p-2" aria-label="Conversations">
         {threads.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-slate-500">No conversations yet</p>
+          <p className="px-2 py-3 text-sm text-slate-500">
+            No conversations yet
+          </p>
         ) : (
           <ul className="space-y-1">
             {threads.map((thread) => {
@@ -64,7 +63,9 @@ export function ConversationSidebar({
                 <li key={thread.id}>
                   <div
                     className={`group flex items-start gap-1 rounded-lg ${
-                      isActive ? "bg-sky-600/20 ring-1 ring-sky-600/50" : "hover:bg-slate-800/80"
+                      isActive
+                        ? "bg-sky-600/20 ring-1 ring-sky-600/50"
+                        : "hover:bg-slate-800/80"
                     }`}
                   >
                     <button

@@ -22,7 +22,6 @@ dependencies = [
     "langchain-text-splitters>=0.3",
     "rank-bm25>=0.2",  # eval harness sparse leg only (prod uses FastEmbed-in-Qdrant)
     "numpy>=1.26",
-    "pydantic-ai>=0.2",
     "instructor>=1.0",
     "openai>=1.0",
     "psycopg[binary]>=3.2",
