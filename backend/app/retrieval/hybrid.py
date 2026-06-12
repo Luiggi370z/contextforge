@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.documents.models import Chunk
 from app.core.config import get_settings
-from app.core.constants import RRF_RANK_CONSTANT
+from app.core.constants import RRF_RANK_CONSTANT, STAGE_RETRIEVE_RERANK
+from app.graph.progress import emit_stage
 from app.retrieval.dedupe import dedupe_chunks_by_content
 from app.retrieval.models import RetrievedChunk
 from app.retrieval.qdrant_store import QdrantStore, VectorRecord
@@ -149,6 +150,7 @@ async def hybrid_retrieve_native(
     settings = get_settings()
     records = await qdrant.hybrid_search(query, limit=settings.retrieval_top_k)
     candidates = _fused_to_chunks(records)
+    emit_stage(STAGE_RETRIEVE_RERANK, candidates=len(candidates), backend=settings.rerank_backend)
     ranked = await rerank_candidates_async(query, candidates, top_n=settings.rerank_top_n)
     return dedupe_chunks_by_content(ranked)
 

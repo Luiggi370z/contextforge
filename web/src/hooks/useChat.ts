@@ -10,7 +10,6 @@ import { streamQuery } from "./useSSE";
  */
 export function useChat() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
-  const [showDebug, setShowDebug] = useState(true);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
   const loadThreads = useCallback(async () => {
@@ -84,9 +83,9 @@ export function useChat() {
               requestAnimationFrame(() => resolve());
             });
           },
-          async (stage) => {
+          async (event) => {
             flushSync(() => {
-              dispatch({ type: "stream_stage", stage });
+              dispatch({ type: "stream_stage", event });
             });
           },
         );
@@ -117,9 +116,7 @@ export function useChat() {
     input: state.input,
     setInput: (input: string) => dispatch({ type: "input_changed", input }),
     loading: state.loading,
-    showDebug,
-    setShowDebug,
-    streamStage: state.streamStage,
+    pipelineEvents: state.pipelineEvents,
     threadLoading: state.threadLoading,
     deletingThreadId,
     loadThreads,

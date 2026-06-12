@@ -9,8 +9,10 @@ from app.core.constants import (
     CITATION_SCORE_RELATIVE_MIN,
     MAX_GENERATION_CONTEXTS,
     RERANK_BACKEND_CROSS_ENCODER,
+    STAGE_GRADE_JUDGE,
 )
 from app.graph.conversation import ChatTurn, format_chat_history
+from app.graph.progress import emit_stage
 from app.llm.models import RetrievalGrade
 from app.retrieval.models import RetrievedChunk
 
@@ -107,6 +109,7 @@ async def grade_retrieval(
     if provider.name == "heuristic":
         return score_grade
 
+    emit_stage(STAGE_GRADE_JUDGE, provider=provider.name)
     try:
         return await provider.grade(
             query=judge_query,

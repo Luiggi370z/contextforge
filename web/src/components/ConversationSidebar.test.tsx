@@ -29,6 +29,33 @@ describe("ConversationSidebar", () => {
     expect(onSelectThread).toHaveBeenCalledWith(threads[0].id);
   });
 
+  it("collapses to a rail and expands back", () => {
+    render(
+      <ConversationSidebar
+        threads={threads}
+        activeThreadId={null}
+        loading={false}
+        deletingThreadId={null}
+        onNewThread={vi.fn()}
+        onSelectThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse conversations" }),
+    );
+    expect(screen.queryByText("PTO question")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "New conversation" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand conversations" }),
+    );
+    expect(screen.getByText("PTO question")).toBeInTheDocument();
+  });
+
   it("calls delete without selecting the thread", () => {
     const onSelectThread = vi.fn();
     const onDeleteThread = vi.fn();

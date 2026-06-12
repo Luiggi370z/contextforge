@@ -82,6 +82,20 @@ SSE_EVENT_STATUS = "status"
 SSE_EVENT_DONE = "done"
 SSE_EVENT_ERROR = "error"
 SSE_STAGE_STARTED = "started"
+
+# Pipeline sub-stages streamed live to the UI (see app/graph/progress.py).
+# Node-complete events still use the GRAPH_NODE_* names above; these mark the
+# *start* of a stage (phase="start") so the UI can highlight work in progress.
+STAGE_REWRITE = "rewrite"
+STAGE_ROUTE = "route"
+STAGE_RETRIEVE_SEARCH = "retrieve.search"
+STAGE_RETRIEVE_RERANK = "retrieve.rerank"
+STAGE_GRADE = "grade"
+STAGE_GRADE_JUDGE = "grade.judge"
+STAGE_GENERATE_LLM = "generate.llm"
+STAGE_VALIDATE = "validate"
+STAGE_PHASE_START = "start"
+STAGE_PHASE_END = "end"
 SSE_STREAM_WORD_CHUNK_SIZE = 1
 SSE_STREAM_CHUNK_DELAY_SECONDS = 0.04
 SSE_FLUSH_COMMENT = ": flush\n\n"

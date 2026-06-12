@@ -47,6 +47,54 @@ describe("chatReducer", () => {
     expect(streaming.messages[1]?.content).toBe("partial");
   });
 
+  it("stream_stage accumulates pipeline events and send_success attaches them", () => {
+    const started = chatReducer(initialChatState, {
+      type: "send_start",
+      userMessage: "hi",
+    });
+    const withStage = chatReducer(started, {
+      type: "stream_stage",
+      event: { stage: "route", phase: "start" },
+    });
+    const withMore = chatReducer(withStage, {
+      type: "stream_stage",
+      event: {
+        stage: "generate.llm",
+        phase: "start",
+        detail: { provider: "ollama" },
+      },
+    });
+    expect(withMore.pipelineEvents).toHaveLength(2);
+
+    const success = chatReducer(withMore, {
+      type: "send_success",
+      answer: "done",
+      metadata: {
+        route: "single_hop_rag",
+        abstained: false,
+        nodesVisited: [],
+        retrievalScores: [],
+      },
+      citations: [],
+    });
+    expect(success.messages[1]?.pipelineEvents).toHaveLength(2);
+
+    const ended = chatReducer(success, { type: "send_end" });
+    expect(ended.pipelineEvents).toEqual([]);
+    expect(ended.messages[1]?.pipelineEvents).toHaveLength(2);
+  });
+
+  it("send_start resets pipeline events", () => {
+    const withEvents = chatReducer(
+      {
+        ...initialChatState,
+        pipelineEvents: [{ stage: "route", phase: "start" }],
+      },
+      { type: "send_start", userMessage: "again" },
+    );
+    expect(withEvents.pipelineEvents).toEqual([]);
+  });
+
   it("new_thread clears thread id and messages", () => {
     const withData = chatReducer(
       {

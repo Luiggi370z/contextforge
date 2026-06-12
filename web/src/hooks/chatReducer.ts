@@ -1,4 +1,9 @@
-import type { ChatMessage, QueryMetadata, Thread } from "../types";
+import type {
+  ChatMessage,
+  PipelineEvent,
+  QueryMetadata,
+  Thread,
+} from "../types";
 import type { Citation } from "../types";
 
 export interface ChatState {
@@ -7,7 +12,7 @@ export interface ChatState {
   messages: ChatMessage[];
   input: string;
   loading: boolean;
-  streamStage: string | null;
+  pipelineEvents: PipelineEvent[];
   threadLoading: boolean;
 }
 
@@ -17,7 +22,7 @@ export const initialChatState: ChatState = {
   messages: [],
   input: "",
   loading: false,
-  streamStage: null,
+  pipelineEvents: [],
   threadLoading: false,
 };
 
@@ -30,7 +35,7 @@ export type ChatAction =
   | { type: "thread_load_end" }
   | { type: "thread_deleted"; threadId: string }
   | { type: "send_start"; userMessage: string }
-  | { type: "stream_stage"; stage: string }
+  | { type: "stream_stage"; event: PipelineEvent }
   | { type: "stream_token"; assistantContent: string }
   | {
       type: "send_success";
@@ -92,7 +97,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         input: "",
         loading: true,
-        streamStage: null,
+        pipelineEvents: [],
         messages: [
           ...state.messages,
           { role: "user", content: action.userMessage },
@@ -100,7 +105,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ],
       };
     case "stream_stage":
-      return { ...state, streamStage: action.stage };
+      return {
+        ...state,
+        pipelineEvents: [...state.pipelineEvents, action.event],
+      };
     case "stream_token":
       return {
         ...state,
@@ -113,6 +121,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: updateLastAssistant(state.messages, action.answer, {
           metadata: action.metadata,
           citations: action.citations,
+          // Keep the traversed path inspectable on the finished message.
+          pipelineEvents: state.pipelineEvents,
         }),
       };
     case "send_error":
@@ -121,7 +131,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: updateLastAssistant(state.messages, action.message),
       };
     case "send_end":
-      return { ...state, loading: false, streamStage: null };
+      return { ...state, loading: false, pipelineEvents: [] };
     default:
       return state;
   }

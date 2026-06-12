@@ -1,6 +1,8 @@
-import type { QueryResponse } from "../types";
+import type { PipelineEvent, QueryResponse } from "../types";
 
-export type StreamStatusHandler = (stage: string) => void | Promise<void>;
+export type StreamStatusHandler = (
+  event: PipelineEvent,
+) => void | Promise<void>;
 
 export type StreamTokenHandler = (chunk: string) => void | Promise<void>;
 
@@ -8,7 +10,9 @@ interface StreamPayload {
   type: string;
   content?: string;
   stage?: string;
-  detail?: string;
+  phase?: string;
+  // Object on status events ({"provider": ...}); string on error events.
+  detail?: Record<string, unknown> | string;
   correlationId?: string;
   result?: QueryResponse;
 }
@@ -43,7 +47,14 @@ export async function streamQuery(
         if (!line.startsWith("data: ")) continue;
         const payload = JSON.parse(line.slice(6)) as StreamPayload;
         if (payload.type === "status" && payload.stage) {
-          await onStatus?.(payload.stage);
+          await onStatus?.({
+            stage: payload.stage,
+            phase: payload.phase === "end" ? "end" : "start",
+            detail:
+              typeof payload.detail === "object" && payload.detail !== null
+                ? payload.detail
+                : undefined,
+          });
         }
         if (payload.type === "token" && payload.content) {
           await onToken(payload.content);
@@ -52,7 +63,9 @@ export async function streamQuery(
           finalResult = payload.result;
         }
         if (payload.type === "error") {
-          throw new Error(payload.detail ?? "Stream error");
+          const detail =
+            typeof payload.detail === "string" ? payload.detail : undefined;
+          throw new Error(detail ?? "Stream error");
         }
       }
     }

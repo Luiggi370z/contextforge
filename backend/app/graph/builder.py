@@ -9,9 +9,17 @@ import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
-from app.core.constants import ROUTE_DIRECT
+from app.core.constants import (
+    ROUTE_DIRECT,
+    STAGE_GRADE,
+    STAGE_PHASE_END,
+    STAGE_RETRIEVE_SEARCH,
+    STAGE_ROUTE,
+    STAGE_VALIDATE,
+)
 from app.graph import nodes
 from app.graph.chunks import chunks_from_state
+from app.graph.progress import StageEvent, emit_stage
 from app.graph.state import GraphState
 from app.retrieval.hybrid import hybrid_retrieve
 from app.retrieval.models import RetrievedChunk
@@ -24,6 +32,7 @@ def _cfg(config: RunnableConfig) -> dict[str, Any]:
 
 
 async def _route(state: GraphState, config: RunnableConfig) -> dict:
+    emit_stage(STAGE_ROUTE)
     return await nodes.route_node(state)
 
 
@@ -34,6 +43,7 @@ def _after_route(state: GraphState) -> Literal["retrieve", "generate"]:
 
 
 async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
+    emit_stage(STAGE_RETRIEVE_SEARCH)
     cfg = _cfg(config)
     db = cfg["db"]
     qdrant = cfg["qdrant"]
@@ -59,15 +69,20 @@ async def _retrieve(state: GraphState, config: RunnableConfig) -> dict:
 
 
 async def _grade(state: GraphState, config: RunnableConfig) -> dict:
+    emit_stage(STAGE_GRADE)
     chunks = chunks_from_state(state)
     return await nodes.grade_node(state, chunks=chunks)
 
 
 async def _generate(state: GraphState, config: RunnableConfig) -> dict:
+    # generate.llm is emitted from the dispatcher with the provider name; the
+    # abstain path never reaches the LLM so no stage fires for it.
     return await nodes.generate_node(state)
 
 
 async def _validate(state: GraphState, config: RunnableConfig) -> dict:
+    if state.get("route") != ROUTE_DIRECT and not state.get("abstained"):
+        emit_stage(STAGE_VALIDATE)
     return await nodes.validate_node(state)
 
 
@@ -170,8 +185,13 @@ async def stream_invoke_agent_graph(
     retrieval_query: str | None = None,
     chat_history: list[dict[str, str]] | None = None,
     trace_id: str | None = None,
-) -> AsyncIterator[str | GraphState]:
-    """Yield each completed node name, then the final graph state."""
+) -> AsyncIterator[StageEvent | GraphState]:
+    """Yield live stage events (starts + node completions), then the final state.
+
+    ``custom`` carries :class:`StageEvent` objects emitted mid-node via
+    :func:`emit_stage` (rerank, LLM judge, generation provider, ...);
+    ``updates`` marks each graph node's completion.
+    """
     compiled = compiled_graph or build_agent_graph(checkpointer=checkpointer)
     config = _graph_run_config(db=db, qdrant=qdrant, thread_id=thread_id)
     state: GraphState = _initial_graph_state(
@@ -180,11 +200,17 @@ async def stream_invoke_agent_graph(
         chat_history=chat_history,
         trace_id=trace_id or thread_id,
     )
-    async for update in compiled.astream(state, config=config, stream_mode="updates"):
-        if not isinstance(update, dict):
+    async for mode, payload in compiled.astream(
+        state, config=config, stream_mode=["updates", "custom"]
+    ):
+        if mode == "custom":
+            if isinstance(payload, StageEvent):
+                yield payload
             continue
-        for node_name, node_update in update.items():
+        if not isinstance(payload, dict):
+            continue
+        for node_name, node_update in payload.items():
             if isinstance(node_update, dict):
                 state = {**state, **node_update}  # type: ignore[typeddict-item]
-            yield node_name
+            yield StageEvent(stage=node_name, phase=STAGE_PHASE_END)
     yield _finalize_graph_state(state)

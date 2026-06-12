@@ -9,11 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.query.schemas import Citation, QueryMetadata, QueryRequest, QueryResponse
 from app.api.v1.threads.models import Message, Thread
-from app.core.constants import THREAD_TITLE_MAX_CHARS
+from app.core.constants import STAGE_REWRITE, THREAD_TITLE_MAX_CHARS
 from app.core.tracing import flush_tracer, traced_span
 from app.graph.builder import stream_invoke_agent_graph
 from app.graph.conversation import ChatTurn, load_recent_thread_messages
 from app.graph.pipeline import run_agent_pipeline
+from app.graph.progress import StageEvent
 from app.graph.state import GraphState
 from app.llm.retrieval_query import build_retrieval_query
 from app.retrieval.qdrant_store import QdrantStore, get_qdrant_store
@@ -120,8 +121,10 @@ async def stream_query_graph(
     *,
     checkpointer: Any | None = None,
     compiled_graph: Any | None = None,
-) -> AsyncIterator[str | QueryResponse]:
-    """Yield graph node names as they complete, then the final ``QueryResponse``."""
+) -> AsyncIterator[StageEvent | QueryResponse]:
+    """Yield live pipeline stage events, then the final ``QueryResponse``."""
+    # Query rewriting happens inside prepare_query_run, before the graph starts.
+    yield StageEvent(stage=STAGE_REWRITE)
     thread_id, qdrant, retrieval_query, chat_history = await prepare_query_run(body, session)
     async with traced_span("rag_query_stream", question=body.message, thread_id=str(thread_id)):
         async for item in stream_invoke_agent_graph(
@@ -134,7 +137,7 @@ async def stream_query_graph(
             retrieval_query=retrieval_query,
             chat_history=chat_history,
         ):
-            if isinstance(item, str):
+            if isinstance(item, StageEvent):
                 yield item
                 continue
             response = response_from_graph_state(

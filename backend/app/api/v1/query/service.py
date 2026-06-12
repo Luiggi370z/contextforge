@@ -18,6 +18,7 @@ from app.core.constants import (
     SSE_STAGE_STARTED,
 )
 from app.core.exceptions import AppException
+from app.graph.progress import StageEvent
 from app.graph.runner import run_query, stream_query_graph
 
 log = structlog.get_logger(__name__)
@@ -63,7 +64,13 @@ class QueryService:
                 checkpointer=checkpointer,
                 compiled_graph=compiled_graph,
             ):
+                if isinstance(item, StageEvent):
+                    yield format_sse_event(SSE_EVENT_STATUS, item.to_payload())
+                    yield SSE_FLUSH_COMMENT
+                    await asyncio.sleep(0)
+                    continue
                 if isinstance(item, str):
+                    # Back-compat with patched/fake stream generators in tests.
                     yield format_sse_event(SSE_EVENT_STATUS, {"stage": item})
                     yield SSE_FLUSH_COMMENT
                     await asyncio.sleep(0)

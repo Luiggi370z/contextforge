@@ -41,11 +41,20 @@ export interface ThreadDetail extends Thread {
   messages: ThreadMessage[];
 }
 
+/** One live progress signal from the SSE stream (status events). */
+export interface PipelineEvent {
+  stage: string;
+  phase: "start" | "end";
+  detail?: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   metadata?: QueryMetadata;
   citations?: Citation[];
+  /** Stage events captured while this assistant message streamed. */
+  pipelineEvents?: PipelineEvent[];
 }
 
 export interface DemoPrompt {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Thread } from "../types";
 
 interface Props {
@@ -37,15 +38,51 @@ export function ConversationSidebar({
   onSelectThread,
   onDeleteThread,
 }: Props) {
-  return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-slate-700 bg-slate-950/80">
-      <div className="border-b border-slate-700 p-3">
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (collapsed) {
+    return (
+      <aside className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-slate-700 bg-slate-950/80 py-3">
         <button
           type="button"
-          className="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium hover:bg-sky-500"
+          aria-label="Expand conversations"
+          title="Expand conversations"
+          className="rounded-lg border border-slate-600 px-2 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+          onClick={() => setCollapsed(false)}
+        >
+          »
+        </button>
+        <button
+          type="button"
+          aria-label="New conversation"
+          title="New conversation"
+          className="rounded-lg bg-sky-600 px-2 py-1.5 text-sm font-medium hover:bg-sky-500"
+          onClick={onNewThread}
+        >
+          +
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="flex w-64 shrink-0 flex-col border-r border-slate-700 bg-slate-950/80">
+      <div className="flex items-center gap-2 border-b border-slate-700 p-3">
+        <button
+          type="button"
+          className="flex-1 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium hover:bg-sky-500"
           onClick={onNewThread}
         >
           New conversation
+        </button>
+        <button
+          type="button"
+          aria-label="Collapse conversations"
+          title="Collapse conversations"
+          className="rounded-lg border border-slate-600 px-2 py-2 text-sm text-slate-300 hover:bg-slate-800"
+          onClick={() => setCollapsed(true)}
+        >
+          «
         </button>
       </div>
 

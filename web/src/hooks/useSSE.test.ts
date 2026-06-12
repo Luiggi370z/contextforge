@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { QueryResponse } from "../types";
+import type { PipelineEvent, QueryResponse } from "../types";
 import { streamQuery } from "./useSSE";
 
 function buildSseResponse(events: object[]): Response {
@@ -40,6 +40,13 @@ describe("streamQuery", () => {
       vi.fn().mockResolvedValue(
         buildSseResponse([
           { type: "status", stage: "started" },
+          {
+            type: "status",
+            stage: "generate.llm",
+            phase: "start",
+            detail: { provider: "ollama" },
+          },
+          { type: "status", stage: "generate", phase: "end" },
           { type: "token", content: "full " },
           { type: "token", content: "answer" },
           { type: "done", result: final },
@@ -48,20 +55,32 @@ describe("streamQuery", () => {
     );
 
     const tokens: string[] = [];
-    const stages: string[] = [];
+    const events: PipelineEvent[] = [];
     const result = await streamQuery(
       "PTO?",
       null,
       (chunk) => {
         tokens.push(chunk);
       },
-      (stage) => {
-        stages.push(stage);
+      (event) => {
+        events.push(event);
       },
     );
 
     expect(tokens.join("")).toBe("full answer");
-    expect(stages).toContain("started");
+    expect(events.map((event) => event.stage)).toContain("started");
+    // Legacy status events without a phase default to "start".
+    expect(events[0]).toEqual({
+      stage: "started",
+      phase: "start",
+      detail: undefined,
+    });
+    expect(events[1]).toEqual({
+      stage: "generate.llm",
+      phase: "start",
+      detail: { provider: "ollama" },
+    });
+    expect(events[2]?.phase).toBe("end");
     expect(result.threadId).toBe("thread-1");
     expect(result.citations[0]?.snippet).toBe("policy text");
   });

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import structlog
 
+from app.core.constants import STAGE_GENERATE_LLM
+from app.graph.progress import emit_stage
 from app.llm.grading import grade_retrieval, select_chunks_for_generation
 from app.llm.models import AnswerValidation, RouteDecision, RouteKind
 from app.llm.providers import get_llm_provider
@@ -41,7 +43,9 @@ async def generate_from_context(
     model as additional context so a turn like "so is it mandatory?" gets
     grounded against the MFA discussion that preceded it.
     """
-    return await get_llm_provider().generate(
+    provider = get_llm_provider()
+    emit_stage(STAGE_GENERATE_LLM, provider=provider.name)
+    return await provider.generate(
         query=query,
         contexts=contexts,
         route=route,

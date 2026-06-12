@@ -18,7 +18,19 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("documents", sa.Column("size_bytes", sa.BigInteger(), nullable=True))
-    op.add_column("documents", sa.Column("raw_bytes", sa.LargeBinary(), nullable=False))
+    # server_default backfills pre-existing rows (which predate raw-byte storage)
+    # with an empty payload so the NOT NULL constraint can be applied; the default
+    # is dropped right after so new inserts must supply real bytes.
+    op.add_column(
+        "documents",
+        sa.Column(
+            "raw_bytes",
+            sa.LargeBinary(),
+            nullable=False,
+            server_default=sa.text("'\\x'::bytea"),
+        ),
+    )
+    op.alter_column("documents", "raw_bytes", server_default=None)
 
 
 def downgrade() -> None:
