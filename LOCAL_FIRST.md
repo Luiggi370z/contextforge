@@ -15,7 +15,7 @@ RERANK_BACKEND=cross_encoder  # local cross-encoder
 
 Steps:
 1. `ollama pull gemma2`
-2. `uv sync --extra ml`            # FlagEmbedding (BGE-M3) + sentence-transformers + fastembed
+2. `uv sync --extra ml`            # FlagEmbedding for BGE-M3; MiniLM/FastEmbed are base deps
 3. `just up` (postgres + qdrant + redis)
 4. `just migrate && just seed`     # seeds the 1024-dim collection (contextforge_1024)
 5. `just worker` and `just api-dev`

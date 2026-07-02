@@ -7,6 +7,7 @@ DOCUMENT_LIST_LIMIT = 100
 THREAD_LIST_LIMIT = 50
 DEFAULT_UPLOAD_FILENAME = "upload.txt"
 DEFAULT_TEXT_CONTENT_TYPE = "text/plain"
+DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 DOCUMENT_STATUS_PROCESSING = "processing"
 DOCUMENT_STATUS_INGESTED = "ingested"
 
@@ -44,6 +45,7 @@ ERROR_DOCUMENT_NOT_FOUND = "Document not found"
 ERROR_THREAD_NOT_FOUND = "Thread not found"
 ERROR_INTERNAL_SERVER = "Internal server error"
 ERROR_INVALID_UPLOAD = "Upload could not be processed"
+ERROR_UPLOAD_TOO_LARGE = "Upload exceeds maximum allowed size"
 
 # Chunking (recursive splitter)
 CHUNK_SIZE_CHARS = 800

@@ -14,7 +14,7 @@ from functools import lru_cache
 import structlog
 
 try:
-    from FlagEmbedding import BGEM3FlagModel
+    from FlagEmbedding import BGEM3FlagModel  # pyright: ignore[reportMissingImports]
 except ImportError:  # optional ``ml`` extra
     BGEM3FlagModel = None  # type: ignore[misc, assignment]
 

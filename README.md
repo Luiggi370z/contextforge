@@ -2,10 +2,10 @@
 
 ContextForge is an agentic RAG portfolio project: FastAPI + LangGraph orchestration, hybrid retrieval (Qdrant dense + BM25 + RRF), and a React chat UI with debug visibility.
 
-- Plan: [docs/PLAN.md](docs/PLAN.md)
-- Ollama integration (planned): [docs/OLLAMA_INTEGRATION.md](docs/OLLAMA_INTEGRATION.md)
+- Plan: [PLAN.md](PLAN.md)
+- Ollama integration (planned): [OLLAMA_INTEGRATION.md](OLLAMA_INTEGRATION.md)
 - Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
-- Coding standards: [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
+- Coding standards: [CODING_STANDARDS.md](CODING_STANDARDS.md)
 
 ## Why this project
 
@@ -29,6 +29,10 @@ just api-dev                 # terminal 1: http://localhost:8000/docs
 just web-install && just web-dev  # terminal 2: http://localhost:5173
 just seed                    # terminal 3, optional: load sample docs
 ```
+
+Default Qdrant hybrid retrieval dependencies (MiniLM dense embeddings + FastEmbed BM25)
+are installed by the base backend package. Use `uv sync --extra ml` only for BGE-M3
+local-first mode.
 
 ## Run with Ollama
 
@@ -121,6 +125,6 @@ contextforge/
 ├── web/             # React chat UI
 ├── eval/            # dev-only RAGAS/heuristic reporters (hit live API, write reports/)
 ├── scripts/         # seed + demo helpers
-├── docs/PLAN.md
+├── PLAN.md
 └── justfile
 ```

@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.constants import DEFAULT_MAX_UPLOAD_BYTES
+
 LLMProvider = Literal["heuristic", "openai", "ollama"]
 
 
@@ -18,6 +20,7 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://contextforge:contextforge@localhost:5434/contextforge"
     )
     redis_url: str = "redis://localhost:6379"
+    max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     contextual_retrieval_enabled: bool = False
     # TODO(retrieval-backend): Branch ingest/retrieve on this when Postgres profile ships.
     # Values: qdrant (default) | postgres (pgvector dense + tsvector FTS).
